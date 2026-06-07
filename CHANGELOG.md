@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.2] — 2026-06-08
+
+### Changed
+- **Lean repo** — compiled binaries removed from git; repo is now ~4 MB instead of ~170 MB
+- **GitHub Actions CI** — tagged releases (`v*.*.*`) build and publish `chessist-engine-windows.zip`
+- **setup.bat downloads binaries** — `ChessistEngine.exe` and `stockfish.exe` are fetched from GitHub releases on first run (skipped if already present)
+- **Auto-download Stockfish** — `ChessistEngine.exe` re-fetches Stockfish automatically if missing, with download progress broadcast over WebSocket
+- **Extension detection** — the engine detects when the Chrome extension is connected (via an `identify` message)
+- **Eldritch theme** — the status panel adopts a flat pitch-black aesthetic with the Chessist purple (`#792A9E`) accent
+- **BootstrapGate** — the status panel shows a setup checklist (engine → Stockfish → extension) until everything is ready
+
+---
+
 ## [1.3.1] — 2026-06-08
 
 ### Changed
