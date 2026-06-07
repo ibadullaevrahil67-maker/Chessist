@@ -1,8 +1,7 @@
-native-host/__pycache__/
-overlay/bin/Debug/
-overlay/obj/
-engine/bin/Debug/
+engine/bin/
 engine/obj/
+ui/node_modules/
+native-host/__pycache__/
 *.log
 *.pdb
 *.ini
