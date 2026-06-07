@@ -53,7 +53,7 @@
 
 ## Quick Start
 
-### 1. Download
+### 1. Clone
 
 ```
 git clone https://github.com/lurimous/Chessist.git
@@ -64,32 +64,14 @@ git clone https://github.com/lurimous/Chessist.git
 1. Go to `chrome://extensions` (or `brave://extensions`)
 2. Enable **Developer mode** (toggle, top right)
 3. Click **Load unpacked** → select the `Chessist` folder
-4. The Chessist icon appears in your toolbar — copy the extension ID shown below the name
 
-### 3. Run setup
+### 3. Run setup (once)
 
-**Requirements before running:**
-- **Python 3** in PATH ([python.org](https://www.python.org/downloads/) — check "Add to PATH" during install)
-- **Stockfish** ([stockfishchess.org/download](https://stockfishchess.org/download/))
-
-Run **`setup.bat`** from the root of the repo:
-
-```
-setup.bat
-```
-
-It will:
-1. Check Python is installed
-2. Install the `websockets` Python package
-3. Set up Stockfish (or let you point to your `.exe`)
-4. Ask for your extension ID and register the native messaging host
-5. Optionally add the overlay to Windows startup
+Double-click **`setup.bat`** — no prompts, takes ~2 seconds.
 
 ### 4. Play
 
-1. Restart your browser
-2. Click the Chessist icon → select **Native** under Engine — status should show **Connected**
-3. Open any game on [chess.com](https://www.chess.com) or [lichess.org](https://lichess.org)
+Open any game on [chess.com](https://www.chess.com) or [lichess.org](https://lichess.org). The engine starts automatically.
 
 ---
 
@@ -138,32 +120,23 @@ The overlay checks for updates on startup. A tray notification appears if a newe
 
 ```
 Chessist/
-├── setup.bat               # First-time setup (run this)
-├── start.bat               # Launch overlay manually
-├── dev/
-│   ├── rebuild.bat         # Rebuild overlay from source
-│   └── start_debug.bat     # Launch overlay with debug console
+├── setup.bat               # First-time setup (run once)
 ├── manifest.json
 ├── src/
-│   ├── content/
-│   │   ├── content.js      # Chess.com board detection & eval
-│   │   ├── lichess.js      # Lichess board detection & eval
-│   │   └── content.css
-│   ├── background/
-│   │   └── service-worker.js
-│   ├── engine/             # Stockfish WASM (built-in engine)
-│   ├── offscreen/
-│   ├── popup/
-│   │   ├── popup.html
-│   │   ├── popup.js
-│   │   └── popup.css
+│   ├── content/            # Board detection + eval display
+│   ├── background/         # Service worker (engine launcher)
+│   ├── popup/              # Extension popup
 │   └── options/
-├── native-host/
-│   ├── stockfish_host.py   # Native messaging host
-│   ├── chessist_overlay.py # Overlay tray app (WebSocket server)
-│   ├── chessist_overlay.bat
-│   ├── stockfish_host.bat
-│   └── dist/               # Built exe (after running setup.bat)
+├── engine/                 # ChessistEngine source + binaries
+│   ├── ChessistEngine.csproj
+│   ├── Program.cs
+│   └── bin/Release/net48/
+│        ├── ChessistEngine.exe   # Native engine + overlay + WebSocket server
+│        ├── stockfish.exe        # Bundled Stockfish (GPL)
+│        └── ui/                  # Built React status panel
+├── host/                   # Native messaging host manifest
+├── ui/                     # React+Vite status panel source
+├── scripts/                # Dev helper scripts
 └── icons/
 ```
 
@@ -176,10 +149,9 @@ Chessist/
 - Refresh the page
 - Check the extension is enabled in `chrome://extensions`
 
-**Native engine not connecting**
-- Run `setup.bat` again and make sure the extension ID is correct
-- Verify Python 3 is in PATH: `python --version` in a terminal
-- Verify Stockfish is in PATH: `stockfish` in a terminal, or set `STOCKFISH_PATH` env var
+**Engine not connecting**
+- Run `setup.bat` (only needed once after cloning)
+- Reload the extension in chrome://extensions
 
 **Overlay not showing**
 - Check the tray icon area (click `^` in the taskbar corner)
@@ -194,8 +166,7 @@ Chessist/
 ## Credits
 
 - Created by [lurimous](https://github.com/lurimous/)
-- Powered by [Stockfish](https://stockfishchess.org/)
-- WASM build from [lichess-org/stockfish.js](https://github.com/lichess-org/stockfish.js)
+- [Stockfish](https://stockfishchess.org/) is GPL-licensed and bundled for convenience ([source](https://github.com/official-stockfish/Stockfish))
 
 ## License
 

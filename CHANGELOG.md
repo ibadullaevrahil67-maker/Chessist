@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.1] — 2026-06-08
+
+### Changed
+- **Removed WASM engine** — `ChessistEngine.exe` (native Stockfish) is now the sole analysis engine; no WASM fallback
+- **Removed Python dependency** — `ChessistEngine.exe` now acts as its own native-messaging host (HostBridge mode)
+- **Bundled Stockfish** — `stockfish.exe` is included; no separate install required
+- **Zero-prompt setup** — `setup.bat` requires no user input; extension ID is pinned via manifest key
+- **React+Vite status panel** — tray icon → "Open Panel" shows live engine status, eval depth, score, and NPS
+- Repo reorganized: `overlay/` → `engine/`, `native-host/` → `host/`, dev scripts → `scripts/`
+- `ChessistEngine.exe` prevents duplicate instances via named mutex
+
+---
+
 ## v1.3.0 — Chessist Engine
 
 ### Added
