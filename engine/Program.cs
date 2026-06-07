@@ -11,7 +11,10 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.IO.Compression;
+using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
@@ -581,9 +584,9 @@ namespace ChessistEngine
             string? path = FindStockfish();
             if (path == null)
             {
-                DebugLog.Write("StockfishManager: stockfish.exe not found in any known location");
-                SendStatus("error", "Stockfish not found. Install Stockfish and add to PATH.");
-                return false;
+                DebugLog.Write("StockfishManager: stockfish.exe not found — attempting download");
+                path = DownloadStockfishAsync().GetAwaiter().GetResult();
+                if (path == null) return false;
             }
 
             DebugLog.Write($"StockfishManager: starting {path}");
@@ -624,6 +627,7 @@ namespace ChessistEngine
 
                 DebugLog.Write("StockfishManager: engine ready");
                 SendStatus("ready");
+                BroadcastBootstrapStatus(BroadcastAsync, false);
                 return true;
             }
             catch (Exception ex)
@@ -660,6 +664,98 @@ namespace ChessistEngine
                 catch { }
             }
             return null;
+        }
+
+        async Task<string?> DownloadStockfishAsync()
+        {
+            try
+            {
+                SendStatus("downloading", "Stockfish: connecting...");
+                var exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!;
+                var destPath = Path.Combine(exeDir, "stockfish.exe");
+
+                using var http = new HttpClient();
+                http.DefaultRequestHeaders.Add("User-Agent", "ChessistEngine/1.0");
+
+                var json = await http.GetStringAsync(
+                    "https://api.github.com/repos/official-stockfish/Stockfish/releases/latest");
+
+                var url = System.Text.RegularExpressions.Regex.Matches(json,
+                    @"""browser_download_url""\s*:\s*""([^""]+\.zip)""")
+                    .Cast<System.Text.RegularExpressions.Match>()
+                    .Select(m => m.Groups[1].Value)
+                    .Where(u => u.IndexOf("windows", StringComparison.OrdinalIgnoreCase) >= 0)
+                    .OrderByDescending(u => u.IndexOf("avx2", StringComparison.OrdinalIgnoreCase) >= 0 ? 1 : 0)
+                    .FirstOrDefault();
+
+                if (url == null)
+                {
+                    SendStatus("error", "Stockfish: no Windows asset found in release");
+                    return null;
+                }
+
+                SendStatus("downloading", "Stockfish: downloading...");
+                var tmpZip = Path.Combine(Path.GetTempPath(), "stockfish_dl.zip");
+                using (var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
+                {
+                    resp.EnsureSuccessStatusCode();
+                    long? total = resp.Content.Headers.ContentLength;
+                    using var src = await resp.Content.ReadAsStreamAsync();
+                    using var dst = new FileStream(tmpZip, FileMode.Create, FileAccess.Write, FileShare.None);
+                    var buf = new byte[81920];
+                    long downloaded = 0;
+                    int lastPct = -1;
+                    int n;
+                    while ((n = await src.ReadAsync(buf, 0, buf.Length)) > 0)
+                    {
+                        await dst.WriteAsync(buf, 0, n);
+                        downloaded += n;
+                        if (total > 0)
+                        {
+                            int pct = (int)(downloaded * 100 / total.Value);
+                            if (pct != lastPct && pct % 5 == 0)
+                            {
+                                lastPct = pct;
+                                SendStatus("downloading", $"Stockfish: {pct}%");
+                            }
+                        }
+                    }
+                }
+
+                var tmpDir = Path.Combine(Path.GetTempPath(), "stockfish_extracted");
+                if (Directory.Exists(tmpDir)) Directory.Delete(tmpDir, true);
+                ZipFile.ExtractToDirectory(tmpZip, tmpDir);
+
+                var sfExe = Directory.EnumerateFiles(tmpDir, "*.exe", SearchOption.AllDirectories)
+                    .FirstOrDefault(f => Path.GetFileName(f).StartsWith("stockfish", StringComparison.OrdinalIgnoreCase));
+
+                if (sfExe == null)
+                {
+                    SendStatus("error", "Stockfish: exe not found in downloaded zip");
+                    return null;
+                }
+
+                File.Copy(sfExe, destPath, overwrite: true);
+                try { File.Delete(tmpZip); Directory.Delete(tmpDir, true); } catch { }
+
+                SendStatus("ready", "Stockfish ready");
+                DebugLog.Write($"StockfishManager: downloaded stockfish to {destPath}");
+                return destPath;
+            }
+            catch (Exception ex)
+            {
+                SendStatus("error", $"Stockfish download failed: {ex.Message}");
+                DebugLog.Write($"StockfishManager: download error: {ex.Message}");
+                return null;
+            }
+        }
+
+        public void BroadcastBootstrapStatus(Func<string, Task>? broadcast, bool extensionConnected)
+        {
+            if (broadcast == null) return;
+            bool sfOk = _running && _sf != null && !_sf.HasExited;
+            var msg = $"{{\"type\":\"bootstrap_status\",\"stockfishOk\":{sfOk.ToString().ToLower()},\"extensionConnected\":{extensionConnected.ToString().ToLower()}}}";
+            _ = broadcast(msg);
         }
 
         public void Evaluate(string fen, int depth, int multiPv)
@@ -1089,6 +1185,9 @@ namespace ChessistEngine
         readonly List<(WebSocket ws, SemaphoreSlim lk)> _clients = new();
         readonly object _clientsLock = new();
 
+        static int _extensionClientCount = 0;
+        static readonly object _extLock = new();
+
         public WsServer(OverlayForm overlay, StockfishManager sfManager)
         {
             _overlay   = overlay;
@@ -1127,6 +1226,7 @@ namespace ChessistEngine
             var ws    = wsCtx.WebSocket;
             var lk    = new SemaphoreSlim(1, 1);
             var buf   = new byte[65536];
+            bool isExtensionClient = false;
 
             lock (_clientsLock) _clients.Add((ws, lk));
             DebugLog.Connect();
@@ -1174,6 +1274,15 @@ namespace ChessistEngine
                                 _sfManager.SetOption(msg.Name, msg.Value);
                             break;
 
+                        case "identify":
+                            if (json.IndexOf("extension", StringComparison.OrdinalIgnoreCase) >= 0 && !isExtensionClient)
+                            {
+                                isExtensionClient = true;
+                                lock (_extLock) _extensionClientCount++;
+                                _sfManager.BroadcastBootstrapStatus(BroadcastAsync, _extensionClientCount > 0);
+                            }
+                            break;
+
                         default:
                             // Overlay position/visual update
                             _overlay.Apply(msg);
@@ -1185,6 +1294,11 @@ namespace ChessistEngine
             finally
             {
                 lock (_clientsLock) _clients.RemoveAll(c => c.ws == ws);
+                if (isExtensionClient)
+                {
+                    lock (_extLock) _extensionClientCount--;
+                    _sfManager.BroadcastBootstrapStatus(BroadcastAsync, _extensionClientCount > 0);
+                }
                 DebugLog.Disconnect();
                 _overlay.Apply(new WsMsg { Visible = false });
                 ws.Dispose();
