@@ -1,7 +1,7 @@
 @echo off
 title Chessist Engine
 set "ROOT=%~dp0"
-set "CS_EXE=%ROOT%overlay\bin\Release\net48\ChessistEngine.exe"
+set "CS_EXE=%ROOT%..\engine\bin\Release\net48\ChessistEngine.exe"
 
 if not exist "%CS_EXE%" (
     echo ChessistEngine.exe not found. Build it with:
