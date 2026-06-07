@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
+import BootstrapGate from './components/BootstrapGate'
+import EvalPanel from './components/EvalPanel'
 
 interface EvalData {
   depth: number
@@ -8,55 +10,23 @@ interface EvalData {
   nps?: number
 }
 
-interface EngineStatus {
-  status: 'connecting' | 'ready' | 'searching' | 'error'
-  message?: string
+interface BootstrapStatus {
+  stockfishOk: boolean
+  extensionConnected: boolean
+  statusMessage?: string
 }
 
-function formatScore(data: EvalData): string {
-  if (data.mate !== undefined) return `M${data.mate}`
-  if (data.cp !== undefined) {
-    const pawns = data.cp / 100
-    return (pawns >= 0 ? '+' : '') + pawns.toFixed(2)
-  }
-  return '—'
-}
-
-function EvalBar({ cp, mate }: { cp?: number; mate?: number }) {
-  let fillPercent = 50
-  if (mate !== undefined) fillPercent = mate > 0 ? 95 : 5
-  else if (cp !== undefined) fillPercent = 50 + Math.max(-45, Math.min(45, cp / 50))
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
-      <div style={{ width: 12, height: 80, background: '#1a1a1a', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
-        <div style={{
-          position: 'absolute', bottom: 0, width: '100%',
-          height: `${fillPercent}%`, background: '#fff',
-          transition: 'height 0.3s ease',
-        }} />
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'monospace' }}>
-        {mate !== undefined ? `M${mate}` : cp !== undefined ? ((cp >= 0 ? '+' : '') + (cp / 100).toFixed(2)) : '—'}
-      </div>
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: '#2a2a2a', borderRadius: 6, padding: '8px 12px' }}>
-      <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 600, fontFamily: 'monospace', marginTop: 2 }}>{value}</div>
-    </div>
-  )
-}
+type ConnStatus = 'connecting' | 'connected' | 'error'
 
 export default function App() {
-  const [status, setStatus]     = useState<EngineStatus>({ status: 'connecting' })
-  const [evalData, setEvalData] = useState<EvalData | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectRef = useRef<number>(0)
+  const [connStatus, setConnStatus] = useState<ConnStatus>('connecting')
+  const [statusMsg, setStatusMsg]   = useState<string>('')
+  const [bootstrap, setBootstrap]   = useState<BootstrapStatus>({
+    stockfishOk: false, extensionConnected: false,
+  })
+  const [evalData, setEvalData]     = useState<EvalData | null>(null)
+  const wsRef      = useRef<WebSocket | null>(null)
+  const reconnRef  = useRef(0)
 
   useEffect(() => {
     function connect() {
@@ -64,64 +34,85 @@ export default function App() {
       wsRef.current = ws
 
       ws.onopen = () => {
-        setStatus({ status: 'ready' })
-        reconnectRef.current = 0
+        setConnStatus('connected')
+        reconnRef.current = 0
       }
-
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data)
           if (msg.type === 'eval' && msg.data) {
             setEvalData(msg.data)
-            setStatus(s => ({ ...s, status: 'searching' }))
           } else if (msg.type === 'engine_status') {
-            setStatus({ status: msg.status, message: msg.message })
+            setStatusMsg(msg.message ?? '')
+            if (msg.status === 'error') setConnStatus('error')
+            if (msg.status === 'ready') {
+              setBootstrap(b => ({ ...b, stockfishOk: true }))
+            }
+          } else if (msg.type === 'bootstrap_status') {
+            setBootstrap(b => ({
+              stockfishOk: !!msg.stockfishOk,
+              extensionConnected: !!msg.extensionConnected,
+              statusMessage: b.statusMessage,
+            }))
           }
         } catch { /* ignore */ }
       }
-
       ws.onclose = () => {
-        setStatus({ status: 'connecting' })
-        const delay = Math.min(3000, 500 * Math.pow(2, reconnectRef.current))
-        reconnectRef.current++
+        setConnStatus('connecting')
+        setBootstrap({ stockfishOk: false, extensionConnected: false })
+        const delay = Math.min(3000, 500 * Math.pow(2, reconnRef.current))
+        reconnRef.current++
         setTimeout(connect, delay)
       }
-
       ws.onerror = () => {}
     }
-
     connect()
-    return () => { wsRef.current?.close() }
+    return () => wsRef.current?.close()
   }, [])
 
-  const statusColor = { connecting: '#888', ready: '#4caf50', searching: '#2196f3', error: '#f44336' }[status.status]
-  const statusLabel = { connecting: 'Connecting…', ready: 'Ready', searching: 'Analyzing', error: 'Error' }[status.status]
+  // Keep statusMessage in bootstrap in sync with latest engine_status message
+  useEffect(() => {
+    setBootstrap(b => ({ ...b, statusMessage: statusMsg }))
+  }, [statusMsg])
+
+  const wsConnected = connStatus === 'connected'
+  const bootstrapDone = bootstrap.stockfishOk && bootstrap.extensionConnected
+  const statusLabel = { connecting: 'Connecting…', connected: evalData ? 'Analyzing' : 'Ready', error: 'Error' }[connStatus]
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', padding: 16, minHeight: '100vh', background: '#1e1e1e', color: '#e0e0e0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <div style={{ width: 10, height: 10, borderRadius: '50%', background: statusColor }} />
-        <span style={{ fontWeight: 600 }}>Chessist Engine</span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#888' }}>{statusLabel}</span>
+    <div style={{ background: 'var(--bg)', color: 'var(--fg)', minHeight: '100vh', fontSize: 13 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '10px 16px',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: wsConnected ? 'var(--accent)' : 'var(--fg-dim)',
+          boxShadow: wsConnected ? 'var(--accent-glow)' : 'none',
+        }} />
+        <span style={{ fontWeight: 700, letterSpacing: '0.08em', fontSize: 12 }}>CHESSIST</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--fg-muted)', fontSize: 11 }}>{statusLabel}</span>
       </div>
 
-      {status.message && (
-        <div style={{ fontSize: 12, color: '#f44336', marginBottom: 8 }}>{status.message}</div>
+      {statusMsg && (
+        <div style={{
+          padding: '6px 16px', fontSize: 11,
+          color: connStatus === 'error' ? 'var(--status-red)' : 'var(--fg-muted)',
+          borderBottom: '1px solid var(--border)',
+          fontFamily: 'monospace',
+        }}>
+          {statusMsg}
+        </div>
       )}
 
-      {evalData ? (
-        <>
-          <EvalBar cp={evalData.cp} mate={evalData.mate} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
-            <Stat label="Score"    value={formatScore(evalData)} />
-            <Stat label="Depth"    value={String(evalData.depth)} />
-            <Stat label="Best"     value={evalData.bestMove ?? '—'} />
-            <Stat label="kNPS"     value={evalData.nps ? String(Math.round(evalData.nps / 1000)) : '—'} />
-          </div>
-        </>
+      {!bootstrapDone ? (
+        <BootstrapGate wsConnected={wsConnected} bootstrap={bootstrap} />
+      ) : evalData ? (
+        <EvalPanel evalData={evalData} />
       ) : (
-        <div style={{ color: '#666', marginTop: 20, textAlign: 'center' }}>
-          {status.status === 'connecting' ? 'Waiting for engine…' : 'No position yet'}
+        <div style={{ padding: 20, color: 'var(--fg-dim)', textAlign: 'center', fontSize: 12 }}>
+          No position yet — open a game on chess.com or lichess.org
         </div>
       )}
     </div>
