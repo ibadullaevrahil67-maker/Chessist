@@ -880,6 +880,7 @@
   // ── Overlay WebSocket (direct, low-latency) ─────────────────────────────────
   let _overlayWs = null;
   let _overlayReconnectTimer = null;
+  let _launchTriggered = false;
 
   // ── Move prediction cache ─────────────────────────────────────────────────
   let _pvQuickCache = null; // instant pv-derived prediction: { fenKey, bestMove, cp, mate, pv, depth, turn }
@@ -950,6 +951,7 @@
     try {
       _overlayWs = new WebSocket('ws://127.0.0.1:27301');
       _overlayWs.onopen  = () => {
+        _launchTriggered = false;
         clearTimeout(_overlayReconnectTimer); _overlayReconnectTimer = null;
         sendPositionUpdate();
         // Board may not be in DOM yet on page load — poll until ready
@@ -961,6 +963,14 @@
         }
         if (_lastEvaluation) updateEval(_lastEvaluation);
         if (currentFen) requestEval(currentFen); // always request fresh after (re)connect
+        // Sync current settings to engine on connect
+        chrome.storage.sync.get(['skillLevel', 'showAltArrows']).then(s => {
+          if (!_overlayWs || _overlayWs.readyState !== WebSocket.OPEN) return;
+          const level = parseInt(s.skillLevel) || 20;
+          _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'Skill Level', value: String(level) }));
+          const mpv = s.showAltArrows ? '3' : '1';
+          _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'MultiPV', value: mpv }));
+        }).catch(() => {});
       };
       _overlayWs.onmessage = (e) => {
         try {
@@ -1352,6 +1362,19 @@
     if (countdownEl) { countdownEl.style.display = 'none'; countdownEl.textContent = ''; }
   }
 
+  function showEngineStartingMessage() {
+    let el = document.getElementById('chessist-engine-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'chessist-engine-status';
+      el.style.cssText = 'position:fixed;bottom:12px;right:12px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.4 sans-serif;padding:6px 10px;border-radius:6px;z-index:99999;pointer-events:none';
+      document.body.appendChild(el);
+    }
+    el.textContent = '⌛ Chessist: starting engine…';
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 4000);
+  }
+
   function showRefreshMessage() {
     if (evalBar) {
       if (evalScore) { evalScore.textContent = 'Refresh'; evalScore.title = 'Extension needs page refresh'; evalScore.style.cursor = 'pointer'; evalScore.onclick = () => window.location.reload(); }
@@ -1392,18 +1415,13 @@
       } catch (e) {}
     }
 
-    // Fallback: WASM via service worker
-    try {
-      const response = await chrome.runtime.sendMessage({ type: 'EVALUATE', fen, isMouseRelease, t: Date.now() });
-      if (response && response.evaluation) updateEval(response.evaluation);
-    } catch (e) {
-      const errorMsg = e.message || e.toString();
-      if (errorMsg.includes('Extension context invalidated') || errorMsg.includes('message channel closed')) {
-        extensionContextValid = false; showRefreshMessage();
-      } else {
-        console.error('Chessist: Error requesting evaluation', e);
-      }
+    // Engine not connected — trigger launch and show status
+    if (!_launchTriggered) {
+      _launchTriggered = true;
+      chrome.runtime.sendMessage({ type: 'LAUNCH_ENGINE' }).catch(() => {});
+      setTimeout(() => { _launchTriggered = false; }, 5000);
     }
+    showEngineStartingMessage();
   }
 
   // Shared handler for eval results from either WS engine or WASM service worker
@@ -1445,22 +1463,6 @@
     chrome.runtime.sendMessage({ type: 'WS_EVAL_UPDATE', evaluation }).catch(() => {});
     if (!evaluation.fromCache && evaluation.pv?.length >= 2 && evaluation.depth >= targetDepth)
       _updatePVPrediction(evaluation);
-  }
-
-  // Listen for eval updates from background (WASM fallback path)
-  try {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (!extensionContextValid) return;
-      try {
-        if (message.type === 'EVAL_RESULT' && message.evaluation) {
-          handleEvaluationResult(message.evaluation);
-        }
-      } catch (e) {
-        if (e.message?.includes('Extension context invalidated')) { extensionContextValid = false; showRefreshMessage(); }
-      }
-    });
-  } catch (e) {
-    log('Chessist: Could not add message listener');
   }
 
   // ============================================================
@@ -1990,6 +1992,37 @@
           }
         } else if (message.type === 'RE_EVALUATE') {
           if (currentFen && isEnabled) { evalBar?.classList.add('loading'); requestEval(currentFen); }
+        } else if (message.type === 'SET_SKILL_LEVEL') {
+          if (_overlayWs?.readyState === WebSocket.OPEN) {
+            const level = parseInt(message.level) || 20;
+            _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'Skill Level', value: String(level) }));
+            if (level < 20) {
+              _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'UCI_LimitStrength', value: 'false' }));
+            }
+          }
+        } else if (message.type === 'SET_ELO') {
+          if (_overlayWs?.readyState === WebSocket.OPEN) {
+            if (message.elo) {
+              _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'UCI_LimitStrength', value: 'true' }));
+              _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'UCI_Elo', value: String(message.elo) }));
+            } else {
+              _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'UCI_LimitStrength', value: 'false' }));
+            }
+          }
+        } else if (message.type === 'SET_MULTIPV') {
+          if (_overlayWs?.readyState === WebSocket.OPEN) {
+            _overlayWs.send(JSON.stringify({ type: 'set_option', name: 'MultiPV', value: String(message.value || 1) }));
+          }
+        } else if (message.type === 'STOP_ANALYSIS') {
+          if (_overlayWs?.readyState === WebSocket.OPEN) {
+            _overlayWs.send(JSON.stringify({ type: 'stop' }));
+          }
+        } else if (message.type === 'RESET_ENGINE') {
+          if (_overlayWs?.readyState === WebSocket.OPEN) {
+            _overlayWs.send(JSON.stringify({ type: 'stop' }));
+          }
+          _pvQuickCache = null;
+          _preWarmCache = null;
         } else if (message.type === 'GET_OVERLAY_WS_STATUS') {
           sendResponse({ connected: !!(_overlayWs && _overlayWs.readyState === WebSocket.OPEN) });
           return true;
