@@ -6,7 +6,6 @@
   "description": "Live chess evaluation bar for Chess.com and Lichess - powered by Stockfish. Created by lurimous.",
   "permissions": [
     "storage",
-    "offscreen",
     "tabs",
     "nativeMessaging",
     "scripting"
@@ -52,7 +51,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["src/engine/*", "src/offscreen/*", "icons/*"],
+      "resources": ["icons/*"],
       "matches": ["<all_urls>"]
     }
   ]
