@@ -1,9 +1,0 @@
-{
-  "name": "com.chess.live.eval",
-  "description": "Chessist - Engine Launcher",
-  "path": "C:\\Users\\luri\\Documents\\Programming\\Chessist\\native-host\\stockfish_host.bat",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://jelhncidmancgchfobogofiodjkeonih/"
-  ]
-}

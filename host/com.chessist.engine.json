@@ -1,0 +1,9 @@
+{
+  "name": "com.chessist.engine",
+  "description": "Chessist - Engine Launcher",
+  "path": "REPLACE_WITH_ABSOLUTE_PATH_TO_ChessistEngine.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://oecfgiflfobnbajnpanbpjnnkgdhiifb/"
+  ]
+}
