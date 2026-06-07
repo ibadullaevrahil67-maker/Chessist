@@ -1738,6 +1738,7 @@
     try {
       _overlayWs = new WebSocket('ws://127.0.0.1:27301');
       _overlayWs.onopen  = () => {
+        try { _overlayWs.send(JSON.stringify({ type: 'identify', role: 'extension' })); } catch (e) {}
         _launchTriggered = false;
         clearTimeout(_overlayReconnectTimer); _overlayReconnectTimer = null;
         sendPositionUpdate();
