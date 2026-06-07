@@ -549,11 +549,8 @@ namespace ChessistEngine
     {
         static readonly string[] _sfCandidates =
         {
-            // Relative to exe directory
             "stockfish.exe",
             @"stockfish\stockfish.exe",
-            @"..\..\..\..\native-host\stockfish.exe",
-            // Common Windows install paths
             @"C:\Program Files\Stockfish\stockfish.exe",
             @"C:\Program Files (x86)\Stockfish\stockfish.exe",
             @"C:\stockfish\stockfish.exe",
@@ -1139,6 +1136,112 @@ namespace ChessistEngine
         }
     }
 
+    // ── Native-messaging host bridge ──────────────────────────────────────────────
+    // When Chrome launches ChessistEngine.exe as a native-messaging host it passes
+    // the calling extension's origin (chrome-extension://ID/) as an argument.
+    // In that mode we skip all UI and run the stdio JSON loop instead.
+
+    static class HostBridge
+    {
+        static Stream In  => Console.OpenStandardInput();
+        static Stream Out => Console.OpenStandardOutput();
+
+        static string? Read()
+        {
+            var lb = new byte[4];
+            int read = 0;
+            while (read < 4)
+            {
+                int n = In.Read(lb, read, 4 - read);
+                if (n == 0) return null;
+                read += n;
+            }
+            int len = BitConverter.ToInt32(lb, 0);
+            var buf = new byte[len]; read = 0;
+            while (read < len)
+            {
+                int n = In.Read(buf, read, len - read);
+                if (n == 0) return null;
+                read += n;
+            }
+            return Encoding.UTF8.GetString(buf);
+        }
+
+        static void Write(string json)
+        {
+            var bytes = Encoding.UTF8.GetBytes(json);
+            Out.Write(BitConverter.GetBytes(bytes.Length), 0, 4);
+            Out.Write(bytes, 0, bytes.Length);
+            Out.Flush();
+        }
+
+        static bool IsRunning()
+        {
+            Mutex? m = null;
+            try   { return Mutex.TryOpenExisting("ChessistEngineInstance", out m); }
+            catch { return false; }
+            finally { m?.Dispose(); }
+        }
+
+        static void Launch(bool debug)
+        {
+            if (IsRunning())
+            {
+                Write("{\"type\":\"launch_result\",\"success\":true,\"already_running\":true}");
+                return;
+            }
+            try
+            {
+                var exe = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                var psi = new ProcessStartInfo(exe)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow  = !debug,
+                    Arguments       = debug ? "-debug" : "",
+                };
+                Process.Start(psi);
+                Write("{\"type\":\"launch_result\",\"success\":true}");
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message.Replace("\"", "'");
+                Write($"{{\"type\":\"launch_result\",\"success\":false,\"error\":\"{msg}\"}}");
+            }
+        }
+
+        static void Kill()
+        {
+            int self = Process.GetCurrentProcess().Id;
+            foreach (var p in Process.GetProcessesByName("ChessistEngine"))
+            {
+                try { if (p.Id != self) p.Kill(); } catch { }
+                p.Dispose();
+            }
+        }
+
+        public static void Run()
+        {
+            while (true)
+            {
+                var json = Read();
+                if (json == null) break;
+
+                var typeM  = System.Text.RegularExpressions.Regex.Match(json, "\"type\"\\s*:\\s*\"([^\"]+)\"");
+                var debugM = System.Text.RegularExpressions.Regex.Match(json, "\"debug\"\\s*:\\s*true");
+                string type  = typeM.Success ? typeM.Groups[1].Value : "";
+                bool   debug = debugM.Success;
+
+                switch (type)
+                {
+                    case "launch":  Launch(debug); break;
+                    case "restart": Kill(); Thread.Sleep(500); Launch(debug); break;
+                    case "kill":    Kill(); break;
+                    case "quit":    return;
+                }
+            }
+        }
+    }
+
     // ── Entry point ───────────────────────────────────────────────────────────────
 
     static class Program
@@ -1146,6 +1249,18 @@ namespace ChessistEngine
         [STAThread]
         static void Main(string[] args)
         {
+            // Host-bridge mode: Chrome passes "chrome-extension://..." as an argument
+            bool isHost = Array.Exists(args, a =>
+                a.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("-host", StringComparison.OrdinalIgnoreCase));
+
+            if (isHost) { HostBridge.Run(); return; }
+
+            // Prevent duplicate normal-mode instances
+            bool createdNew;
+            var mutex = new Mutex(true, "ChessistEngineInstance", out createdNew);
+            if (!createdNew) { mutex.Dispose(); return; }
+
             bool debug = Array.Exists(args, a => a.Equals("-debug", StringComparison.OrdinalIgnoreCase));
             if (debug) DebugLog.Init();
             DebugLog.OpenLogFile();
@@ -1153,19 +1268,20 @@ namespace ChessistEngine
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            using var cts      = new CancellationTokenSource();
-            using var overlay  = new OverlayForm();
-            using var tray     = new TrayApp();
-            using var sfMgr    = new StockfishManager();
-            var wsServer       = new WsServer(overlay, sfMgr);
+            using var cts     = new CancellationTokenSource();
+            using var overlay = new OverlayForm();
+            using var tray    = new TrayApp();
+            using var sfMgr   = new StockfishManager();
+            var wsServer      = new WsServer(overlay, sfMgr);
 
-            Application.ApplicationExit += (_, _) => cts.Cancel();
+            Application.ApplicationExit += (_, _) => { cts.Cancel(); mutex.ReleaseMutex(); };
 
             Task.Run(() => wsServer.RunAsync(cts.Token));
             Task.Run(() => sfMgr.TryStart());
 
             overlay.Show();
             Application.Run();
+            mutex.Dispose();
         }
     }
 }
