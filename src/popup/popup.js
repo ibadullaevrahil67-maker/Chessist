@@ -512,26 +512,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     colorBlackBtn.classList.toggle('active', currentPlayerColor === 'b');
   }
 
-  // Force restart WASM engine button
-  forceRestartBtn.addEventListener('click', async () => {
-    forceRestartBtn.disabled = true;
-    forceRestartBtn.textContent = 'Restarting...';
-
-    try {
-      await chrome.runtime.sendMessage({ type: 'FORCE_RESTART_ENGINE' });
-      setTimeout(async () => {
-        forceRestartBtn.textContent = 'Force Restart Engine';
-        forceRestartBtn.disabled = false;
-        notifyContentScripts({ type: 'RE_EVALUATE' });
-      }, 1500);
-    } catch (e) {
-      console.error('Force restart failed:', e);
-      forceRestartBtn.textContent = 'Restart Failed';
-      setTimeout(() => {
-        forceRestartBtn.textContent = 'Force Restart Engine';
-        forceRestartBtn.disabled = false;
-      }, 2000);
-    }
+  document.getElementById('forceRestartBtn')?.addEventListener('click', async () => {
+    chrome.runtime.sendMessage({ type: 'RESTART_OVERLAY' }).catch(() => {});
   });
 
   // Notify content scripts helper
