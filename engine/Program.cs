@@ -1231,8 +1231,9 @@ namespace ChessistEngine
             lock (_clientsLock) _clients.Add((ws, lk));
             DebugLog.Connect();
 
-            // Send current engine status to newly connected client
-            _ = Task.Run(() => _sfManager.BroadcastAsync?.Invoke(null!)); // will be filtered below
+            // Send current bootstrap status to newly connected client (broadcasts to all — idempotent)
+            int extCount; lock (_extLock) extCount = _extensionClientCount;
+            _sfManager.BroadcastBootstrapStatus(BroadcastAsync, extCount > 0);
 
             try
             {
