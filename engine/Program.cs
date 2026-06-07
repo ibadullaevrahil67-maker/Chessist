@@ -860,6 +860,7 @@ namespace ChessistEngine
     sealed class TrayApp : IDisposable
     {
         readonly NotifyIcon _icon;
+        SettingsForm? _settingsForm;
 
         public TrayApp()
         {
@@ -875,6 +876,16 @@ namespace ChessistEngine
             catch { ico = SystemIcons.Application; }
 
             var menu = new ContextMenuStrip();
+            var panelItem = new ToolStripMenuItem("Open Panel");
+            panelItem.Click += (_, _) =>
+            {
+                if (_settingsForm == null || _settingsForm.IsDisposed)
+                    _settingsForm = new SettingsForm();
+                _settingsForm.Show();
+                _settingsForm.BringToFront();
+            };
+            menu.Items.Insert(0, panelItem);
+            menu.Items.Insert(1, new ToolStripSeparator());
             menu.Items.Add("View Logs", null, (_, _) =>
             {
                 try { Process.Start(new ProcessStartInfo(DebugLog.LogPath) { UseShellExecute = true }); }
@@ -893,6 +904,80 @@ namespace ChessistEngine
         }
 
         public void Dispose() { _icon.Visible = false; _icon.Dispose(); }
+    }
+
+    // ── Settings panel (WebView2 floating window) ─────────────────────────────────
+
+    sealed class SettingsForm : Form
+    {
+        Microsoft.Web.WebView2.WinForms.WebView2 _webView = null!;
+
+        public SettingsForm()
+        {
+            Text            = "Chessist Panel";
+            Width           = 420;
+            Height          = 520;
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox     = false;
+            ShowInTaskbar   = false;
+            StartPosition   = FormStartPosition.Manual;
+
+            var screen = System.Windows.Forms.Screen.PrimaryScreen!.WorkingArea;
+            Location = new System.Drawing.Point(screen.Right - Width - 20, screen.Bottom - Height - 20);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+
+            _webView = new Microsoft.Web.WebView2.WinForms.WebView2 { Dock = DockStyle.Fill };
+            _webView.CoreWebView2InitializationCompleted += (s, ev) =>
+            {
+                if (!ev.IsSuccess)
+                {
+                    MessageBox.Show(
+                        "WebView2 runtime not found.\nDownload: https://developer.microsoft.com/microsoft-edge/webview2/",
+                        "Chessist", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                _webView.CoreWebView2.Settings.AreDevToolsEnabled = DebugLog.Enabled;
+
+                var uiPath = Path.Combine(
+                    Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "ui");
+
+                if (Directory.Exists(uiPath))
+                {
+                    _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                        "chessist.local", uiPath,
+                        Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
+                    _webView.CoreWebView2.Navigate("https://chessist.local/index.html");
+                }
+                else
+                {
+                    _webView.CoreWebView2.NavigateToString(
+                        "<html><body style='font-family:sans-serif;padding:20px'>" +
+                        "<h2>Chessist Panel</h2>" +
+                        "<p>UI not built yet. Run: <code>cd ui &amp;&amp; npm run build</code></p>" +
+                        "</body></html>");
+                }
+            };
+            Controls.Add(_webView);
+            _webView.EnsureCoreWebView2Async();
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                Hide();
+            }
+            else
+            {
+                base.OnFormClosing(e);
+            }
+        }
     }
 
     // ── Debug logger ──────────────────────────────────────────────────────────────
