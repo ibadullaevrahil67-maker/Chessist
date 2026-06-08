@@ -21,12 +21,13 @@ class Overlay {
   available() { return !!this.exe }
 
   start() {
+    if (this._killed) return
     if (!this.exe) { this.onStatus?.({ overlayOk: false }); return }
     this.proc = spawn(this.exe, [], { windowsHide: true })
     this.proc.on('exit', () => {
       this.proc = null
       this.onStatus?.({ overlayOk: false })
-      setTimeout(() => this.start(), 1500)
+      if (!this._killed) setTimeout(() => this.start(), 1500)
     })
     this.onStatus?.({ overlayOk: true })
   }
@@ -37,6 +38,7 @@ class Overlay {
   }
 
   kill() {
+    this._killed = true
     if (this.proc) { try { this.proc.stdin.write('{"type":"quit"}\n') } catch {} ; try { this.proc.kill() } catch {} }
   }
 }
