@@ -3106,6 +3106,9 @@
           if (_overlayWs?.readyState === WebSocket.OPEN) {
             _overlayWs.send(JSON.stringify({ type: 'stop' }));
           }
+          if (_overlayWs?.readyState === WebSocket.OPEN) {
+            _overlayWs.send(JSON.stringify({ type: 'new_game' }));
+          }
           _pvQuickCache = null;
           _preWarmCache = null;
         } else if (message.type === 'GET_OVERLAY_WS_STATUS') {
