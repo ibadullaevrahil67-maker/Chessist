@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('chessist', {
   isDesktop: true,
   platform: process.platform,
+  getStatus: () => ipcRenderer.invoke('status:get'),
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   closeWindow: () => ipcRenderer.send('window:close'),
   onStatus: (cb) => {
