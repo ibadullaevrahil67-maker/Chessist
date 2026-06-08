@@ -1791,6 +1791,8 @@
             handleEvaluationResult(d);
           } else if (msg.type === 'engine_status') {
             chrome.runtime.sendMessage({ type: 'ENGINE_STATUS', status: msg.status, message: msg.message }).catch(() => {});
+          } else if (msg.type === 'settings' && msg.data) {
+            applyPushedSettings(msg.data);
           }
         } catch (ignore) {}
       };
@@ -2924,6 +2926,83 @@
         }
         autoRematchPending = false;
       }, delay);
+    }
+  }
+
+  // Apply settings pushed by the desktop app over the engine WebSocket.
+  // Mirrors the SETTINGS_UPDATED runtime re-apply logic and the enable toggle.
+  function applyPushedSettings(data) {
+    if (!data) return;
+    if (data.enabled !== undefined) {
+      isEnabled = data.enabled;
+      if (overlayMode) {
+        if (!isEnabled) {
+          if (_overlayWs && _overlayWs.readyState === WebSocket.OPEN)
+            try { _overlayWs.send(JSON.stringify({ positionOnly: true, visible: false })); } catch (e) {}
+        } else {
+          sendPositionUpdate();
+        }
+      } else {
+        if (evalBar) evalBar.style.display = isEnabled ? 'block' : 'none';
+        if (evalBarContainer) evalBarContainer.style.display = isEnabled ? 'block' : 'none';
+      }
+    }
+    if (data.showBestMove !== undefined) {
+      showBestMove = data.showBestMove;
+      if (bestMoveEl) bestMoveEl.style.display = showBestMove ? 'block' : 'none';
+      if (!showBestMove) clearArrow();
+    }
+    if (data.showOpponentBestMove !== undefined) {
+      showOpponentBestMove = data.showOpponentBestMove;
+      if (!showOpponentBestMove) clearArrow();
+    }
+    if (data.showAltArrows !== undefined) {
+      showAltArrows = data.showAltArrows;
+      clearArrow();
+    }
+    if (data.autoMove !== undefined) {
+      autoMove = data.autoMove;
+      if (autoMove) lastAutoMovePosition = null;
+    }
+    if (data.instantMove !== undefined) {
+      instantMove = data.instantMove;
+    }
+    if (data.autoMoveDelayMin !== undefined) {
+      autoMoveDelayMin = data.autoMoveDelayMin;
+    }
+    if (data.autoMoveDelayMax !== undefined) {
+      autoMoveDelayMax = data.autoMoveDelayMax;
+    }
+    if (data.playerColor !== undefined) {
+      manualPlayerColor = data.playerColor;
+      playerColor = detectPlayerColor();
+      if (turnIndicatorEl) {
+        const isMyTurn = playerColor && currentTurn === playerColor;
+        turnIndicatorEl.textContent = `${currentTurn === 'w' ? 'W' : 'B'}/${playerColor || '?'}`;
+        turnIndicatorEl.classList.toggle('my-turn', isMyTurn);
+      }
+    }
+    if (data.depth !== undefined) {
+      targetDepth = data.depth;
+      if (currentFen && isEnabled) {
+        evalBar?.classList.add('loading');
+        requestEval(currentFen);
+      }
+    }
+    if (data.renderMode !== undefined) {
+      overlayMode = (data.renderMode === 'overlay');
+      if (overlayMode) {
+        _connectEngineWs();
+        if (evalBar) evalBar.style.display = 'none';
+        if (evalBarContainer) evalBarContainer.style.display = 'none';
+        clearArrow();
+        clearMoveIcon();
+      } else {
+        if (evalBar) evalBar.style.display = isEnabled ? 'block' : 'none';
+        if (evalBarContainer) evalBarContainer.style.display = isEnabled ? 'block' : 'none';
+        if (_overlayWs && _overlayWs.readyState === WebSocket.OPEN)
+          try { _overlayWs.send(JSON.stringify({ positionOnly: true, visible: false })); } catch (e) {}
+      }
     }
   }
 
