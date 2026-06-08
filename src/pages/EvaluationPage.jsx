@@ -13,32 +13,44 @@ function arrowsFromEval(ev) {
 }
 
 export default function EvaluationPage({ ev, pos, status }) {
-  const connected = status.chessConnected        // a chess tab is active
+  const chessOn = status.chessConnected        // a chess tab is active
+  const extOn = status.extensionConnected      // extension installed (service worker)
   const boardFen = pos?.fen || ev?.fen || START_FEN
   const flipped = !!pos?.flipped
   const hasPosition = !!(pos?.fen || ev?.fen)
 
   const evalMatches = ev?.fen && (!pos?.fen || piecesKey(ev.fen) === piecesKey(pos.fen))
-  const arrows = (connected && ev && evalMatches) ? arrowsFromEval(ev) : []
+  const showEval = chessOn && ev && evalMatches
+  const arrows = showEval ? arrowsFromEval(ev) : []
 
-  // Disconnected (no chess tab) → grayscale + dim. No game yet but connected → light dim.
-  const boardOpacity = !connected ? 0.45 : (hasPosition ? 1 : 0.4)
-  const boardFilter = !connected ? 'grayscale(1)' : (hasPosition ? 'none' : 'grayscale(0.4)')
+  // Three states: live game · extension up but no game · nothing connected.
+  // dot/label/hint reflect which.
+  let dot, label, labelColor, hint
+  if (chessOn) {
+    dot = 'rgb(var(--status-yellow))'; labelColor = 'rgb(var(--fg-muted))'; label = 'Analyzing…'
+    hint = hasPosition ? '' : 'Connected — make a move to start analysis.'
+  } else if (extOn) {
+    dot = 'rgb(var(--status-yellow))'; labelColor = 'rgb(var(--fg-muted))'; label = 'Connected to extension'
+    hint = "Connected to the extension, but couldn't detect a game. Open a game on chess.com or lichess.org."
+  } else {
+    dot = 'rgb(var(--status-red))'; labelColor = 'rgb(var(--status-red))'; label = 'Disconnected'
+    hint = 'No connection. Open the Setup tab to load the extension, then open a game.'
+  }
+
+  // Board greys out whenever there's no live game; fully grey when nothing is connected.
+  const boardOpacity = chessOn ? (hasPosition ? 1 : 0.5) : (extOn ? 0.6 : 0.4)
+  const boardFilter = chessOn ? (hasPosition ? 'none' : 'grayscale(0.4)') : (extOn ? 'grayscale(0.85)' : 'grayscale(1)')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16, gap: 12, overflow: 'hidden' }}>
-      {/* header: eval panel or status line */}
+      {/* header: eval panel (live) or status line */}
       <div style={{ flexShrink: 0 }}>
-        {connected && ev && evalMatches
-          ? <EvalPanel ev={ev} />
-          : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? 'rgb(var(--status-yellow))' : 'rgb(var(--status-red))' }} />
-              <span style={{ color: connected ? 'rgb(var(--fg-muted))' : 'rgb(var(--status-red))', fontWeight: 600 }}>
-                {connected ? 'Analyzing…' : 'Disconnected'}
-              </span>
-            </div>
-          )}
+        {showEval ? <EvalPanel ev={ev} /> : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: dot }} />
+            <span style={{ color: labelColor, fontWeight: 600 }}>{label}</span>
+          </div>
+        )}
       </div>
 
       {/* board fills the remaining space, kept square and bounded by both axes */}
@@ -49,11 +61,7 @@ export default function EvaluationPage({ ev, pos, status }) {
       </div>
 
       <div style={{ flexShrink: 0, textAlign: 'center', fontSize: 12, color: 'rgb(var(--fg-dim))', lineHeight: 1.6, minHeight: 18 }}>
-        {!connected
-          ? 'No chess tab. Open a game on chess.com or lichess.org.'
-          : !hasPosition
-          ? 'Connected — make a move to start analysis.'
-          : ''}
+        {hint}
       </div>
     </div>
   )
