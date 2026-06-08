@@ -1,0 +1,12 @@
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistOverlay.csproj.AssemblyReference.cache
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistOverlay.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistOverlay.AssemblyInfoInputs.cache
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistOverlay.AssemblyInfo.cs
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistOverlay.csproj.CoreCompileInputs.cache
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistOverlay.sourcelink.json
+C:\Users\luri\Documents\Programming\Chessist\overlay\bin\Release\net48\ChessistEngine.exe.config
+C:\Users\luri\Documents\Programming\Chessist\overlay\bin\Release\net48\ChessistEngine.exe
+C:\Users\luri\Documents\Programming\Chessist\overlay\bin\Release\net48\ChessistEngine.pdb
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistEngine.exe
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistEngine.pdb
+C:\Users\luri\Documents\Programming\Chessist\overlay\obj\Release\net48\ChessistEngine.exe.config
