@@ -10,6 +10,9 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Form controls don't inherit font-family by default — make them use the app font. */
+button, input, select, textarea { font-family: inherit; }
+
 body {
   background: rgb(var(--bg));
   color: rgb(var(--fg));
