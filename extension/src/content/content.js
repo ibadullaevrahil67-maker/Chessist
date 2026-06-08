@@ -53,6 +53,7 @@
   const ACCURACY_EVAL_DEPTH = 10;   // Minimum depth for accuracy calculation
 
   let overlayMode = false; // Send eval data to native overlay window
+  let suppressInPage = false; // 'electron' render mode: app draws, extension draws nothing
   let manualMap = false;
   let manualOffsetX = 0;
   let manualOffsetY = 0;
@@ -182,7 +183,7 @@
   // Create SVG arrow overlay on the board
   // Uses viewBox="0 0 100 100" to match Chess.com's coordinate system
   function createArrowOverlay(board) {
-    if (overlayMode) return null;
+    if (overlayMode || suppressInPage) return null;
     // Check if existing overlay is still valid (inside the board)
     if (arrowOverlay && arrowOverlay.parentElement === board) {
       return arrowOverlay;
@@ -366,7 +367,7 @@
     const existing = svg.querySelector('.move-icon-group');
     if (existing) existing.remove();
 
-    if (!showMoveIcon || overlayMode) return;
+    if (!showMoveIcon || overlayMode || suppressInPage) return;
 
     const { file, rank } = squareToIndices(toSquare);
     const squareSize = 12.5;
@@ -1472,7 +1473,7 @@
   function createEvalBar(board) {
     // Check if already created
     if (evalBar) return;
-    if (overlayMode) return;
+    if (overlayMode || suppressInPage) return;
 
     // Try to use Chess.com's native evaluation container first
     const nativeEvalContainer = document.getElementById('board-layout-evaluation');
@@ -1967,7 +1968,7 @@
 
   // Update evaluation display
   function updateEval(evaluation) {
-    if (!evalBar && !overlayMode) return;
+    if (!evalBar && !overlayMode && !suppressInPage) return;
     _lastEvaluation = evaluation;
 
     // Only remove loading state when we reach target depth
@@ -2074,7 +2075,7 @@
 
     sendOverlayUpdate(fillPercent, displayScore, viewFromBlack, evaluation);
 
-    if (!overlayMode) {
+    if (!overlayMode && !suppressInPage) {
       // Update bar fill (use setProperty for higher priority over CSS)
       evalBarFill.style.setProperty('height', `${fillPercent}%`, 'important');
 
@@ -2990,22 +2991,39 @@
       }
     }
     if (data.renderMode !== undefined) {
-      const newOverlay = (data.renderMode === 'overlay');
-      if (newOverlay !== overlayMode) {
+      const mode = data.renderMode; // 'overlay' | 'browser' | 'electron'
+      const newOverlay = (mode === 'overlay');
+      const newSuppress = (mode === 'electron');
+      if (newOverlay !== overlayMode || newSuppress !== suppressInPage) {
         overlayMode = newOverlay;
-        if (overlayMode) {
+        suppressInPage = newSuppress;
+        if (mode === 'overlay') {
           _teardownDomElements();
           _connectOverlayWs();
-        } else {
+        } else if (mode === 'browser') {
           _disconnectOverlayWs();
           const board = findBoard();
-          if (board) {
-            createEvalBar(board);
-            createArrowOverlay(board);
-          }
+          if (board) { createEvalBar(board); createArrowOverlay(board); }
+        } else { // 'electron'
+          _disconnectOverlayWs();   // hide native overlay
+          _teardownDomElements();   // remove in-page UI
         }
       }
     }
+    if (data.showMoveIcon !== undefined) {
+      showMoveIcon = data.showMoveIcon;
+      if (!showMoveIcon) clearMoveIcon();
+    }
+    if (data.smartTiming !== undefined) smartTiming = data.smartTiming;
+    if (data.autoRematch !== undefined) autoRematch = data.autoRematch;
+    if (data.autoNewGame !== undefined) autoNewGame = data.autoNewGame;
+    if (data.stealthMode !== undefined) stealthMode = data.stealthMode;
+    if (data.wlBalance !== undefined) wlBalance = data.wlBalance;
+    if (data.maxConsecutiveWins !== undefined) maxConsecutiveWins = data.maxConsecutiveWins;
+    if (data.maxConsecutiveLosses !== undefined) maxConsecutiveLosses = data.maxConsecutiveLosses;
+    if (data.throwRandom !== undefined) throwRandom = data.throwRandom;
+    if (data.lossRandom !== undefined) lossRandom = data.lossRandom;
+    if (data.targetAccuracy !== undefined) targetAccuracy = data.targetAccuracy;
   }
 
   // Listen for messages from popup/background

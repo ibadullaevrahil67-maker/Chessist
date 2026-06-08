@@ -52,6 +52,7 @@
   const ACCURACY_EVAL_DEPTH = 10;
 
   let overlayMode = false;
+  let suppressInPage = false; // 'electron' render mode: app draws, extension draws nothing
   let manualMap = false;
   let manualOffsetX = 0;
   let manualOffsetY = 0;
@@ -161,7 +162,7 @@
   }
 
   function createArrowOverlay(board) {
-    if (overlayMode) return null;
+    if (overlayMode || suppressInPage) return null;
     if (arrowOverlay && arrowOverlay.parentElement === board) return arrowOverlay;
     if (arrowOverlay) { arrowOverlay.remove(); arrowOverlay = null; }
     document.querySelectorAll('.chess-live-eval-arrow-overlay').forEach(el => el.remove());
@@ -263,7 +264,7 @@
 
     const existing = svg.querySelector('.move-icon-group');
     if (existing) existing.remove();
-    if (!showMoveIcon || overlayMode) return;
+    if (!showMoveIcon || overlayMode || suppressInPage) return;
 
     const { file, rank } = squareToIndices(toSquare);
     const squareSize = 12.5;
@@ -794,7 +795,7 @@
 
   function createEvalBar(board) {
     if (evalBar) return;
-    if (overlayMode) return;
+    if (overlayMode || suppressInPage) return;
 
     log('Chessist: Creating eval bar for lichess');
 
@@ -1125,7 +1126,7 @@
   }
 
   function updateEval(evaluation) {
-    if (!evalBar && !overlayMode) return;
+    if (!evalBar && !overlayMode && !suppressInPage) return;
 
     if (evalBar && evaluation.depth >= targetDepth) evalBar.classList.remove('loading');
 
@@ -1186,7 +1187,7 @@
 
     sendOverlayUpdate(fillPercent, displayScore, viewFromBlack, evaluation);
 
-    if (!overlayMode) {
+    if (!overlayMode && !suppressInPage) {
       evalBarFill.style.setProperty('height', `${fillPercent}%`, 'important');
       if (evalBar) evalBar.classList.toggle('flipped', viewFromBlack);
 
@@ -1970,22 +1971,39 @@
       if (currentFen && isEnabled) { evalBar?.classList.add('loading'); requestEval(currentFen); }
     }
     if (data.renderMode !== undefined) {
-      const newOverlay = (data.renderMode === 'overlay');
-      if (newOverlay !== overlayMode) {
+      const mode = data.renderMode; // 'overlay' | 'browser' | 'electron'
+      const newOverlay = (mode === 'overlay');
+      const newSuppress = (mode === 'electron');
+      if (newOverlay !== overlayMode || newSuppress !== suppressInPage) {
         overlayMode = newOverlay;
-        if (overlayMode) {
+        suppressInPage = newSuppress;
+        if (mode === 'overlay') {
           _teardownDomElements();
           _connectOverlayWs();
-        } else {
+        } else if (mode === 'browser') {
           _disconnectOverlayWs();
           const board = findBoard();
-          if (board) {
-            createEvalBar(board);
-            createArrowOverlay(board);
-          }
+          if (board) { createEvalBar(board); createArrowOverlay(board); }
+        } else { // 'electron'
+          _disconnectOverlayWs();   // hide native overlay
+          _teardownDomElements();   // remove in-page UI
         }
       }
     }
+    if (data.showMoveIcon !== undefined) {
+      showMoveIcon = data.showMoveIcon;
+      if (!showMoveIcon) clearMoveIcon();
+    }
+    if (data.smartTiming !== undefined) smartTiming = data.smartTiming;
+    if (data.autoRematch !== undefined) autoRematch = data.autoRematch;
+    if (data.autoNewGame !== undefined) autoNewGame = data.autoNewGame;
+    if (data.stealthMode !== undefined) stealthMode = data.stealthMode;
+    if (data.wlBalance !== undefined) wlBalance = data.wlBalance;
+    if (data.maxConsecutiveWins !== undefined) maxConsecutiveWins = data.maxConsecutiveWins;
+    if (data.maxConsecutiveLosses !== undefined) maxConsecutiveLosses = data.maxConsecutiveLosses;
+    if (data.throwRandom !== undefined) throwRandom = data.throwRandom;
+    if (data.lossRandom !== undefined) lossRandom = data.lossRandom;
+    if (data.targetAccuracy !== undefined) targetAccuracy = data.targetAccuracy;
   }
 
   try {
