@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0] — 2026-06-08
+
+### Changed
+- **Rebuilt as an Electron desktop app** (React + Vite) — owns Stockfish and the WebSocket server
+- **Overlay is now a slim C# helper** (`ChessistOverlay.exe`) driven by the desktop app over stdin — same transparent, screen-capture-invisible window
+- **No setup.bat, no native messaging** — the app downloads Stockfish on first run; the extension is a pure WebSocket client
+- **Faster within a game** — one persistent Stockfish process with a large hash and multiple threads; the transposition table is reused across moves and reset only on a new game
+- **Repo reorganized** — Electron app at root, browser extension under `extension/`, overlay under `overlay/`
+- Removed the C# engine, native-messaging host, and WASM remnants
+
+---
+
 ## [1.3.2] — 2026-06-08
 
 ### Changed
