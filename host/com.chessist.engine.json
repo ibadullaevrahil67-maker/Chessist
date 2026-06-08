@@ -1,9 +1,0 @@
-{
-  "name": "com.chessist.engine",
-  "description": "Chessist - Engine Launcher",
-  "path": "C:\\Users\\luri\\Documents\\Programming\\Chessist\\engine\\bin\\Release\\net48\\ChessistEngine.exe",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://oecfgiflfobnbajnpanbpjnnkgdhiifb/"
-  ]
-}
