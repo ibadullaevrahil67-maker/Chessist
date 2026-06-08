@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, shell, clipboard } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { ensureStockfish } = require('./stockfish')
@@ -109,6 +109,16 @@ function registerIpc() {
   })
   ipcMain.handle('stockfish:redownload', () => redownloadStockfish())
   ipcMain.handle('shell:open', (_e, url) => { try { shell.openExternal(url) } catch {} })
+  ipcMain.handle('extension:path', () => extensionDir())
+  ipcMain.handle('extension:reveal', () => { try { return shell.openPath(extensionDir()) } catch { return '' } })
+  ipcMain.handle('clipboard:write', (_e, text) => { try { clipboard.writeText(String(text)) } catch {} })
+}
+
+// The bundled (or repo) browser-extension folder users load unpacked.
+function extensionDir() {
+  return isDev
+    ? path.join(__dirname, '..', 'extension')
+    : path.join(process.resourcesPath, 'extension')
 }
 
 app.whenReady().then(() => {

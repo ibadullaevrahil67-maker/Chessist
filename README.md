@@ -16,8 +16,9 @@ Windows 10/11. The overlay is Windows-only.
 
 1. Download and run the latest **Chessist installer** from the [Releases](https://github.com/imluri/Chessist/releases) page.
 2. Open the Chessist app. It downloads Stockfish on first run.
-3. Load the extension: `chrome://extensions` → Developer mode → **Load unpacked** → select the `extension/` folder.
-4. Open a game on chess.com or lichess.org.
+3. Go to the app's **Setup** tab and follow the **Browser Extension** guide — it reveals the bundled
+   extension folder and walks you through `chrome://extensions` → Developer mode → **Load unpacked**.
+4. Open a game on chess.com or lichess.org — the Setup tab flips Extension to *connected*.
 
 ## Develop
 

@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('chessist', {
   setEngineOption: (key, value) => ipcRenderer.invoke('engine:set', { key, value }),
   redownloadStockfish: () => ipcRenderer.invoke('stockfish:redownload'),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+  getExtensionPath: () => ipcRenderer.invoke('extension:path'),
+  revealExtensionFolder: () => ipcRenderer.invoke('extension:reveal'),
+  copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   closeWindow: () => ipcRenderer.send('window:close'),
   onStatus: (cb) => {

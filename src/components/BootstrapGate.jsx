@@ -23,11 +23,6 @@ export default function BootstrapGate({ status }) {
       <Step label="Stockfish engine" status={sf} detail={sfDetail} />
       <Step label="Overlay" status={ov} />
       <Step label="Extension" status={ext} />
-      {!status.extensionConnected && (
-        <div style={{ marginTop: 16, padding: '10px 12px', border: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))', fontSize: 12, color: 'rgb(var(--fg-muted))', lineHeight: 1.6 }}>
-          Load Chessist in <span style={{ color: 'rgb(var(--fg))', fontFamily: 'monospace' }}>chrome://extensions</span> then open a game on chess.com or lichess.org.
-        </div>
-      )}
     </div>
   )
 }
