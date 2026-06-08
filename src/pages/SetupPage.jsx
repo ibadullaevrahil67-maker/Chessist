@@ -1,89 +1,122 @@
 import { useEffect, useState } from 'react'
-import BootstrapGate from '../components/BootstrapGate'
 
 const btn = {
   padding: '7px 12px', fontSize: 12, fontWeight: 600,
-  background: 'rgb(var(--surface))', color: 'rgb(var(--fg))',
+  background: 'rgb(var(--bg))', color: 'rgb(var(--fg))',
   border: '1px solid rgb(var(--border))', cursor: 'pointer',
 }
 
-function ExtensionCard({ connected }) {
+const STATUS = {
+  ok:      { color: 'rgb(var(--status-green))',  glow: '0 0 6px rgba(34,197,94,0.7)' },
+  working: { color: 'rgb(var(--status-yellow))', glow: '0 0 6px rgba(234,179,8,0.7)' },
+  off:     { color: 'rgb(var(--fg-dim))',        glow: 'none' },
+}
+
+// A self-contained module "window": header (title + status) and a body.
+function ModuleCard({ title, state, statusLabel, children }) {
+  const s = STATUS[state] || STATUS.off
+  return (
+    <div style={{ marginBottom: 14, border: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, boxShadow: s.glow, flexShrink: 0 }} />
+        <span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{title}</span>
+        <span style={{ fontSize: 12, fontFamily: 'monospace', color: s.color }}>{statusLabel}</span>
+      </div>
+      <div style={{ borderTop: '1px solid rgb(var(--border))', padding: 14 }}>{children}</div>
+    </div>
+  )
+}
+
+function StockfishModule({ status }) {
+  const [busy, setBusy] = useState(false)
+  const redownload = async () => {
+    setBusy(true)
+    try { await window.chessist.redownloadStockfish() } finally { setBusy(false) }
+  }
+  const ready = status.stockfishOk
+  const downloading = !ready && status.message?.startsWith('Stockfish')
+  const state = ready ? 'ok' : downloading ? 'working' : 'working'
+  const label = ready ? 'ready' : downloading ? status.message.replace('Stockfish: ', '').replace('Stockfish ', '') : 'starting'
+
+  return (
+    <ModuleCard title="Stockfish engine" state={state} statusLabel={label}>
+      <p style={{ fontSize: 12, color: 'rgb(var(--fg-muted))', lineHeight: 1.6, marginBottom: 12 }}>
+        Native Stockfish powers analysis. It's downloaded automatically on first run and stored with the app.
+      </p>
+      <button onClick={redownload} disabled={busy} style={{ ...btn, opacity: busy ? 0.5 : 1, cursor: busy ? 'default' : 'pointer' }}>
+        {busy ? 'Re-downloading…' : 'Re-download Stockfish'}
+      </button>
+    </ModuleCard>
+  )
+}
+
+function OverlayModule({ status }) {
+  const ok = status.overlayOk
+  return (
+    <ModuleCard title="Overlay" state={ok ? 'ok' : 'off'} statusLabel={ok ? 'running' : 'unavailable'}>
+      <p style={{ fontSize: 12, color: 'rgb(var(--fg-muted))', lineHeight: 1.6 }}>
+        {ok
+          ? 'The transparent, screen-capture-invisible overlay helper is running. Pick "Overlay" render mode on the Game tab to draw on the board.'
+          : 'Overlay helper not found. Build it with "npm run build:overlay" (dev) or reinstall the app. The In-page and App render modes still work without it.'}
+      </p>
+    </ModuleCard>
+  )
+}
+
+function ExtensionModule({ status }) {
   const [extPath, setExtPath] = useState('')
   const [copied, setCopied] = useState('')
-
   useEffect(() => { window.chessist.getExtensionPath().then(setExtPath) }, [])
 
-  const copy = (text, tag) => {
-    window.chessist.copyText(text)
-    setCopied(tag)
-    setTimeout(() => setCopied(''), 1500)
-  }
-
-  if (connected) {
-    return (
-      <div style={{ margin: '4px 16px 16px', padding: '12px 14px', border: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgb(var(--status-green))', boxShadow: '0 0 6px rgba(34,197,94,0.7)' }} />
-          <span style={{ fontWeight: 600, fontSize: 13 }}>Extension connected</span>
-        </div>
-        <p style={{ marginTop: 6, fontSize: 12, color: 'rgb(var(--fg-muted))' }}>
-          You're all set — open a game on chess.com or lichess.org.
-        </p>
-      </div>
-    )
-  }
+  const copy = (text, tag) => { window.chessist.copyText(text); setCopied(tag); setTimeout(() => setCopied(''), 1500) }
+  const connected = status.extensionConnected
 
   const Step = ({ n, children }) => (
-    <div style={{ display: 'flex', gap: 10, padding: '6px 0', fontSize: 12, color: 'rgb(var(--fg-muted))', lineHeight: 1.6 }}>
+    <div style={{ display: 'flex', gap: 10, padding: '5px 0', fontSize: 12, color: 'rgb(var(--fg-muted))', lineHeight: 1.6 }}>
       <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', border: '1px solid rgb(var(--border))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'rgb(var(--fg))' }}>{n}</span>
       <span>{children}</span>
     </div>
   )
 
   return (
-    <div style={{ margin: '4px 16px 16px', padding: '14px', border: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))' }}>
-      <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', marginBottom: 10 }}>BROWSER EXTENSION</div>
+    <ModuleCard title="Browser extension" state={connected ? 'ok' : 'off'} statusLabel={connected ? 'connected' : 'not connected'}>
+      {connected ? (
+        <p style={{ fontSize: 12, color: 'rgb(var(--fg-muted))', lineHeight: 1.6 }}>
+          The extension is connected. Open a game on chess.com or lichess.org to start analysis.
+        </p>
+      ) : (
+        <>
+          <Step n={1}>Open <code style={{ color: 'rgb(var(--fg))' }}>chrome://extensions</code> in Chrome, Brave, or Edge.</Step>
+          <Step n={2}>Turn on <strong style={{ color: 'rgb(var(--fg))' }}>Developer mode</strong> (top-right toggle).</Step>
+          <Step n={3}>Click <strong style={{ color: 'rgb(var(--fg))' }}>Load unpacked</strong> and select the folder below.</Step>
 
-      <Step n={1}>Open <code style={{ color: 'rgb(var(--fg))' }}>chrome://extensions</code> in Chrome, Brave, or Edge.</Step>
-      <Step n={2}>Turn on <strong style={{ color: 'rgb(var(--fg))' }}>Developer mode</strong> (top-right toggle).</Step>
-      <Step n={3}>Click <strong style={{ color: 'rgb(var(--fg))' }}>Load unpacked</strong> and select the extension folder below.</Step>
+          {extPath && (
+            <div style={{ margin: '10px 0', padding: '8px 10px', background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))', fontFamily: 'monospace', fontSize: 11, color: 'rgb(var(--fg-muted))', wordBreak: 'break-all' }}>
+              {extPath}
+            </div>
+          )}
 
-      {extPath && (
-        <div style={{ margin: '10px 0', padding: '8px 10px', background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))', fontFamily: 'monospace', fontSize: 11, color: 'rgb(var(--fg-muted))', wordBreak: 'break-all' }}>
-          {extPath}
-        </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button style={btn} onClick={() => window.chessist.revealExtensionFolder()}>Open folder</button>
+            <button style={btn} onClick={() => copy(extPath, 'path')}>{copied === 'path' ? 'Copied ✓' : 'Copy path'}</button>
+            <button style={btn} onClick={() => copy('chrome://extensions', 'url')}>{copied === 'url' ? 'Copied ✓' : 'Copy chrome://extensions'}</button>
+          </div>
+          <p style={{ marginTop: 10, fontSize: 11, color: 'rgb(var(--fg-dim))' }}>
+            Browsers block opening <code>chrome://</code> links from outside — copy and paste it into the address bar.
+          </p>
+        </>
       )}
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-        <button style={btn} onClick={() => window.chessist.revealExtensionFolder()}>Open extension folder</button>
-        <button style={btn} onClick={() => copy(extPath, 'path')}>{copied === 'path' ? 'Copied ✓' : 'Copy folder path'}</button>
-        <button style={btn} onClick={() => copy('chrome://extensions', 'url')}>{copied === 'url' ? 'Copied ✓' : 'Copy chrome://extensions'}</button>
-      </div>
-
-      <p style={{ marginTop: 10, fontSize: 11, color: 'rgb(var(--fg-dim))' }}>
-        Browsers block opening <code>chrome://</code> links from outside — copy it and paste into the address bar.
-      </p>
-    </div>
+    </ModuleCard>
   )
 }
 
 export default function SetupPage({ status }) {
-  const [busy, setBusy] = useState(false)
-
-  const redownload = async () => {
-    setBusy(true)
-    try { await window.chessist.redownloadStockfish() } finally { setBusy(false) }
-  }
-
   return (
-    <div>
-      <BootstrapGate status={status} />
-      <ExtensionCard connected={status.extensionConnected} />
-      <div style={{ padding: '0 16px 16px' }}>
-        <button onClick={redownload} disabled={busy} style={{ ...btn, opacity: busy ? 0.5 : 1, cursor: busy ? 'default' : 'pointer' }}>
-          {busy ? 'Re-downloading…' : 'Re-download Stockfish'}
-        </button>
-      </div>
+    <div style={{ padding: 16 }}>
+      <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', marginBottom: 12, color: 'rgb(var(--fg-muted))' }}>SETUP</div>
+      <StockfishModule status={status} />
+      <OverlayModule status={status} />
+      <ExtensionModule status={status} />
     </div>
   )
 }
