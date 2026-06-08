@@ -45,8 +45,3 @@ input[type="checkbox"] { cursor: pointer; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 0; border: 2px solid rgb(var(--bg)); }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--fg-dim)); }
-
-/* Respect reduced-motion. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
-}
