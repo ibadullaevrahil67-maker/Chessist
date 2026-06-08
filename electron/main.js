@@ -55,6 +55,7 @@ const componentStatus = {
   overlayOk: false,
   extensionConnected: false,   // extension installed (service worker present)
   chessConnected: false,       // a chess tab (content script) is active
+  chessSite: null,             // 'Chess.com' | 'Lichess' when a chess tab is active
   message: '',
 }
 

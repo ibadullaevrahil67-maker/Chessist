@@ -14,6 +14,7 @@ class Bridge {
     this.wss = null
     this.contentClients = new Set()   // chess tabs
     this.presenceClients = new Set()  // service worker(s)
+    this.chessSite = null             // e.g. 'Chess.com' | 'Lichess'
     this.getGameSettings = null // set by main: () => gameSettings
     this.onPosition = null      // set by main: (msg) => void
   }
@@ -21,7 +22,7 @@ class Bridge {
   _emit() {
     const chessConnected = this.contentClients.size > 0
     const extensionConnected = chessConnected || this.presenceClients.size > 0
-    this.onComponent?.({ extensionConnected, chessConnected })
+    this.onComponent?.({ extensionConnected, chessConnected, chessSite: chessConnected ? this.chessSite : null })
   }
 
   start() {
@@ -52,6 +53,7 @@ class Bridge {
     if (msg.type === 'identify') {
       if (msg.role === 'content') {
         this.contentClients.add(ws)
+        if (msg.site) this.chessSite = msg.site
         // Push current game settings to the freshly connected content script.
         const data = this.getGameSettings?.()
         if (data) { try { ws.send(JSON.stringify({ type: 'settings', data })) } catch {} }

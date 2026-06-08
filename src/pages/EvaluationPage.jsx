@@ -25,10 +25,12 @@ export default function EvaluationPage({ ev, pos, status }) {
 
   // Three states: live game · extension up but no game · nothing connected.
   // dot/label/hint reflect which.
+  const site = status.chessSite || 'a chess site'
   let dot, label, labelColor, hint
   if (chessOn) {
-    dot = 'rgb(var(--status-yellow))'; labelColor = 'rgb(var(--fg-muted))'; label = 'Analyzing…'
-    hint = hasPosition ? '' : 'Connected — make a move to start analysis.'
+    dot = 'rgb(var(--status-yellow))'; labelColor = 'rgb(var(--fg-muted))'
+    label = hasPosition ? 'Analyzing…' : `On ${site}`
+    hint = hasPosition ? '' : `You're on ${site} — start a game to see analysis.`
   } else if (extOn) {
     dot = 'rgb(var(--status-yellow))'; labelColor = 'rgb(var(--fg-muted))'; label = 'Connected to extension'
     hint = "Connected to the extension, but couldn't detect a game. Open a game on chess.com or lichess.org."
