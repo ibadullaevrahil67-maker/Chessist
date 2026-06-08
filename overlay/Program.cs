@@ -1,8 +1,8 @@
-// Chessist Engine — C# / .NET 4.8 / GDI+
-// Transparent overlay window + integrated Stockfish engine.
-// WebSocket server on ws://127.0.0.1:27301
+// Chessist Overlay — C# / .NET 4.8 / GDI+
+// Transparent overlay window driven by newline-delimited JSON draw commands on stdin.
+// The Electron app spawns ChessistOverlay.exe and writes WsMsg JSON to its stdin.
 // Build:  dotnet build -c Release
-//         output: overlay\bin\Release\net48\ChessistEngine.exe
+//         output: overlay\bin\Release\net48\ChessistOverlay.exe
 
 using System;
 using System.Collections.Generic;
@@ -11,17 +11,10 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.WebSockets;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace ChessistEngine
@@ -67,34 +60,6 @@ namespace ChessistEngine
         [DataMember(Name = "name",    EmitDefaultValue = false)] public string? Name;
         [DataMember(Name = "value",   EmitDefaultValue = false)] public string? Value;
         [DataMember(Name = "turn",    EmitDefaultValue = false)] public string? Turn;
-    }
-
-    // Eval result broadcast to extension clients
-    [DataContract] class EvalData
-    {
-        [DataMember(Name = "depth")]                                 public int      Depth;
-        [DataMember(Name = "cp",           EmitDefaultValue = false)] public int?    Cp;
-        [DataMember(Name = "mate",         EmitDefaultValue = false)] public int?    Mate;
-        [DataMember(Name = "bestMove",     EmitDefaultValue = false)] public string? BestMove;
-        [DataMember(Name = "pv",           EmitDefaultValue = false)] public string[]? Pv;
-        [DataMember(Name = "nps",          EmitDefaultValue = false)] public long?   Nps;
-        [DataMember(Name = "multipv")]                               public int      Multipv = 1;
-        [DataMember(Name = "multiPvMoves", EmitDefaultValue = false)] public string[]? MultiPvMoves;
-        [DataMember(Name = "fen",          EmitDefaultValue = false)] public string? Fen;
-        [DataMember(Name = "turn",         EmitDefaultValue = false)] public string? Turn;
-    }
-
-    [DataContract] class EvalResponse
-    {
-        [DataMember(Name = "type")] public string  Type = "eval";
-        [DataMember(Name = "data")] public EvalData? Data;
-    }
-
-    [DataContract] class EngineStatusMsg
-    {
-        [DataMember(Name = "type")]                                public string  Type = "engine_status";
-        [DataMember(Name = "status")]                              public string? Status;
-        [DataMember(Name = "message", EmitDefaultValue = false)]   public string? Message;
     }
 
     // ── Win32 P/Invoke ────────────────────────────────────────────────────────────
@@ -546,536 +511,6 @@ namespace ChessistEngine
         }
     }
 
-    // ── Stockfish manager ─────────────────────────────────────────────────────────
-
-    sealed class StockfishManager : IDisposable
-    {
-        static readonly string[] _sfCandidates =
-        {
-            "stockfish.exe",
-            @"stockfish\stockfish.exe",
-            @"C:\Program Files\Stockfish\stockfish.exe",
-            @"C:\Program Files (x86)\Stockfish\stockfish.exe",
-            @"C:\stockfish\stockfish.exe",
-        };
-
-        Process?  _sf;
-        StreamWriter? _sfIn;
-        Thread?   _readerThread;
-        volatile bool   _running;
-        volatile bool   _isDisposing;
-        volatile string? _currentFen;
-        volatile string? _currentTurn;
-        volatile int    _currentMultiPv = 1;
-        volatile int    _lastMultiPv    = 1;
-
-        // Multi-PV buffering: depth → (multipv slot → EvalData)
-        readonly Dictionary<int, Dictionary<int, EvalData>> _pvBuf = new();
-        readonly object _pvLock = new();
-
-        // Serializers
-        static readonly DataContractJsonSerializer _evalSer   = new(typeof(EvalResponse));
-        static readonly DataContractJsonSerializer _statusSer = new(typeof(EngineStatusMsg));
-
-        public Func<string, Task>? BroadcastAsync;
-
-        public bool TryStart()
-        {
-            string? path = FindStockfish();
-            if (path == null)
-            {
-                DebugLog.Write("StockfishManager: stockfish.exe not found — attempting download");
-                path = DownloadStockfishAsync().GetAwaiter().GetResult();
-                if (path == null) return false;
-            }
-
-            DebugLog.Write($"StockfishManager: starting {path}");
-            try
-            {
-                _sf = new Process
-                {
-                    StartInfo = new ProcessStartInfo(path)
-                    {
-                        UseShellExecute        = false,
-                        RedirectStandardInput  = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError  = true,
-                        CreateNoWindow         = true,
-                    }
-                };
-                _sf.Start();
-                _sfIn = _sf.StandardInput;
-                _sfIn.AutoFlush = true;
-
-                // UCI handshake
-                _sfIn.WriteLine("uci");
-                string? line;
-                while ((line = _sf.StandardOutput.ReadLine()) != null)
-                {
-                    if (line == "uciok") break;
-                }
-                _sfIn.WriteLine("setoption name MultiPV value 1");
-                _sfIn.WriteLine("isready");
-                while ((line = _sf.StandardOutput.ReadLine()) != null)
-                {
-                    if (line == "readyok") break;
-                }
-
-                _running = true;
-                _readerThread = new Thread(ReaderLoop) { IsBackground = true, Name = "StockfishReader" };
-                _readerThread.Start();
-
-                DebugLog.Write("StockfishManager: engine ready");
-                SendStatus("ready");
-                BroadcastBootstrapStatus(BroadcastAsync, false);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                DebugLog.Write($"StockfishManager: failed to start — {ex.Message}");
-                SendStatus("error", ex.Message);
-                return false;
-            }
-        }
-
-        static string? FindStockfish()
-        {
-            string exeDir = Path.GetDirectoryName(Application.ExecutablePath) ?? ".";
-
-            foreach (var candidate in _sfCandidates)
-            {
-                string full = Path.IsPathRooted(candidate)
-                    ? candidate
-                    : Path.GetFullPath(Path.Combine(exeDir, candidate));
-                if (File.Exists(full)) return full;
-            }
-
-            // Search PATH
-            string pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
-            foreach (var dir in pathEnv.Split(';'))
-            {
-                string t = dir.Trim();
-                if (t.Length == 0) continue;
-                try
-                {
-                    string full = Path.Combine(t, "stockfish.exe");
-                    if (File.Exists(full)) return full;
-                }
-                catch { }
-            }
-            return null;
-        }
-
-        async Task<string?> DownloadStockfishAsync()
-        {
-            try
-            {
-                SendStatus("downloading", "Stockfish: connecting...");
-                var exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!;
-                var destPath = Path.Combine(exeDir, "stockfish.exe");
-
-                using var http = new HttpClient();
-                http.DefaultRequestHeaders.Add("User-Agent", "ChessistEngine/1.0");
-
-                var json = await http.GetStringAsync(
-                    "https://api.github.com/repos/official-stockfish/Stockfish/releases/latest");
-
-                var url = System.Text.RegularExpressions.Regex.Matches(json,
-                    @"""browser_download_url""\s*:\s*""([^""]+\.zip)""")
-                    .Cast<System.Text.RegularExpressions.Match>()
-                    .Select(m => m.Groups[1].Value)
-                    .Where(u => u.IndexOf("windows", StringComparison.OrdinalIgnoreCase) >= 0)
-                    .OrderByDescending(u => u.IndexOf("avx2", StringComparison.OrdinalIgnoreCase) >= 0 ? 1 : 0)
-                    .FirstOrDefault();
-
-                if (url == null)
-                {
-                    SendStatus("error", "Stockfish: no Windows asset found in release");
-                    return null;
-                }
-
-                SendStatus("downloading", "Stockfish: downloading...");
-                var tmpZip = Path.Combine(Path.GetTempPath(), "stockfish_dl.zip");
-                using (var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
-                {
-                    resp.EnsureSuccessStatusCode();
-                    long? total = resp.Content.Headers.ContentLength;
-                    using var src = await resp.Content.ReadAsStreamAsync();
-                    using var dst = new FileStream(tmpZip, FileMode.Create, FileAccess.Write, FileShare.None);
-                    var buf = new byte[81920];
-                    long downloaded = 0;
-                    int lastPct = -1;
-                    int n;
-                    while ((n = await src.ReadAsync(buf, 0, buf.Length)) > 0)
-                    {
-                        await dst.WriteAsync(buf, 0, n);
-                        downloaded += n;
-                        if (total > 0)
-                        {
-                            int pct = (int)(downloaded * 100 / total.Value);
-                            if (pct != lastPct && pct % 5 == 0)
-                            {
-                                lastPct = pct;
-                                SendStatus("downloading", $"Stockfish: {pct}%");
-                            }
-                        }
-                    }
-                }
-
-                var tmpDir = Path.Combine(Path.GetTempPath(), "stockfish_extracted");
-                if (Directory.Exists(tmpDir)) Directory.Delete(tmpDir, true);
-                ZipFile.ExtractToDirectory(tmpZip, tmpDir);
-
-                var sfExe = Directory.EnumerateFiles(tmpDir, "*.exe", SearchOption.AllDirectories)
-                    .FirstOrDefault(f => Path.GetFileName(f).StartsWith("stockfish", StringComparison.OrdinalIgnoreCase));
-
-                if (sfExe == null)
-                {
-                    SendStatus("error", "Stockfish: exe not found in downloaded zip");
-                    return null;
-                }
-
-                File.Copy(sfExe, destPath, overwrite: true);
-                try { File.Delete(tmpZip); Directory.Delete(tmpDir, true); } catch { }
-
-                SendStatus("ready", "Stockfish ready");
-                DebugLog.Write($"StockfishManager: downloaded stockfish to {destPath}");
-                return destPath;
-            }
-            catch (Exception ex)
-            {
-                SendStatus("error", $"Stockfish download failed: {ex.Message}");
-                DebugLog.Write($"StockfishManager: download error: {ex.Message}");
-                return null;
-            }
-        }
-
-        public void BroadcastBootstrapStatus(Func<string, Task>? broadcast, bool extensionConnected)
-        {
-            if (broadcast == null) return;
-            bool sfOk = _running && _sf != null && !_sf.HasExited;
-            var msg = $"{{\"type\":\"bootstrap_status\",\"stockfishOk\":{sfOk.ToString().ToLower()},\"extensionConnected\":{extensionConnected.ToString().ToLower()}}}";
-            _ = broadcast(msg);
-        }
-
-        public void Evaluate(string fen, int depth, int multiPv)
-        {
-            if (!_running || _sfIn == null) return;
-
-            // Stop current analysis and give Stockfish a moment to flush
-            _sfIn.WriteLine("stop");
-            Thread.Sleep(20);
-
-            _currentFen  = fen;
-            var parts    = fen.Split(' ');
-            _currentTurn = parts.Length > 1 ? parts[1] : "w";
-            _currentMultiPv = multiPv > 0 ? multiPv : 1;
-            lock (_pvLock) _pvBuf.Clear();
-
-            if (_currentMultiPv != _lastMultiPv)
-            {
-                _sfIn.WriteLine($"setoption name MultiPV value {_currentMultiPv}");
-                _lastMultiPv = _currentMultiPv;
-            }
-
-            _sfIn.WriteLine($"position fen {fen}");
-            _sfIn.WriteLine($"go depth {depth}");
-        }
-
-        public void Stop()
-        {
-            if (_running) _sfIn?.WriteLine("stop");
-        }
-
-        public void SetOption(string name, string value)
-        {
-            if (!_running || _sfIn == null) return;
-            _sfIn.WriteLine($"setoption name {name} value {value}");
-            if (name.Equals("MultiPV", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(value, out int n))
-            {
-                _currentMultiPv = n;
-                _lastMultiPv    = n;
-            }
-        }
-
-        void ReaderLoop()
-        {
-            try
-            {
-                string? line;
-                while (_running && _sf != null && (line = _sf.StandardOutput.ReadLine()) != null)
-                    ParseLine(line);
-            }
-            catch { }
-            finally
-            {
-                _running = false;
-                DebugLog.Write("StockfishManager: reader loop exited");
-                if (!_isDisposing)
-                {
-                    DebugLog.Write("StockfishManager: unexpected exit, restarting in 1s");
-                    Thread.Sleep(1000);
-                    Task.Run(() => TryStart());
-                }
-            }
-        }
-
-        void ParseLine(string line)
-        {
-            if (line.StartsWith("info "))
-                ParseInfo(line);
-            // bestmove just confirms analysis complete; eval is already sent via info lines
-        }
-
-        void ParseInfo(string line)
-        {
-            var tokens = line.Split(' ');
-            int depth = 0, multipv = 1;
-            int cp = 0;  bool hasCp   = false;
-            int mate = 0; bool hasMate = false;
-            long nps = 0;
-            var pv = new List<string>();
-            bool inPv = false;
-
-            for (int i = 1; i < tokens.Length; i++)
-            {
-                switch (tokens[i])
-                {
-                    case "depth":
-                        if (++i < tokens.Length) int.TryParse(tokens[i], out depth);
-                        break;
-                    case "multipv":
-                        if (++i < tokens.Length) int.TryParse(tokens[i], out multipv);
-                        break;
-                    case "nps":
-                        if (++i < tokens.Length) long.TryParse(tokens[i], out nps);
-                        break;
-                    case "score":
-                        inPv = false;
-                        if (++i < tokens.Length)
-                        {
-                            if (tokens[i] == "cp" && ++i < tokens.Length)
-                                { hasCp = true; int.TryParse(tokens[i], out cp); }
-                            else if (tokens[i] == "mate" && ++i < tokens.Length)
-                                { hasMate = true; int.TryParse(tokens[i], out mate); }
-                        }
-                        break;
-                    case "pv":
-                        inPv = true;
-                        break;
-                    default:
-                        if (inPv) pv.Add(tokens[i]);
-                        break;
-                }
-            }
-
-            if (depth <= 0 || (!hasCp && !hasMate)) return;
-
-            var slot = new EvalData
-            {
-                Depth   = depth,
-                Cp      = hasCp   ? (int?)cp   : null,
-                Mate    = hasMate  ? (int?)mate : null,
-                Pv      = pv.Count > 0 ? pv.ToArray() : null,
-                Nps     = nps > 0 ? (long?)nps : null,
-                Multipv = multipv,
-                Fen     = _currentFen,
-                Turn    = _currentTurn,
-            };
-
-            EvalData? toSend = null;
-            lock (_pvLock)
-            {
-                if (!_pvBuf.TryGetValue(depth, out var depthBuf))
-                    _pvBuf[depth] = depthBuf = new Dictionary<int, EvalData>();
-                depthBuf[multipv] = slot;
-
-                int expected = _currentMultiPv;
-                if (depthBuf.Count >= expected && depthBuf.TryGetValue(1, out var s1))
-                {
-                    toSend = new EvalData
-                    {
-                        Depth    = s1.Depth,
-                        Cp       = s1.Cp,
-                        Mate     = s1.Mate,
-                        BestMove = s1.Pv?.Length > 0 ? s1.Pv[0] : null,
-                        Pv       = s1.Pv,
-                        Nps      = s1.Nps,
-                        Multipv  = expected,
-                        Fen      = s1.Fen,
-                        Turn     = s1.Turn,
-                    };
-                    if (expected > 1)
-                    {
-                        var alts = new List<string>();
-                        for (int s = 2; s <= expected; s++)
-                            if (depthBuf.TryGetValue(s, out var sn) && sn.Pv?.Length > 0)
-                                alts.Add(sn.Pv[0]);
-                        toSend.MultiPvMoves = alts.Count > 0 ? alts.ToArray() : null;
-                    }
-                }
-            }
-
-            if (toSend != null)
-                Task.Run(() => FireEval(toSend));
-        }
-
-        void FireEval(EvalData data)
-        {
-            var json = Serialize(_evalSer, new EvalResponse { Data = data });
-            BroadcastAsync?.Invoke(json);
-        }
-
-        void SendStatus(string status, string? message = null)
-        {
-            var json = Serialize(_statusSer, new EngineStatusMsg { Status = status, Message = message });
-            BroadcastAsync?.Invoke(json);
-        }
-
-        static string Serialize<T>(DataContractJsonSerializer ser, T obj)
-        {
-            using var ms = new MemoryStream();
-            ser.WriteObject(ms, obj);
-            return Encoding.UTF8.GetString(ms.ToArray());
-        }
-
-        public void Dispose()
-        {
-            _isDisposing = true;
-            _running = false;
-            try { _sfIn?.WriteLine("quit"); } catch { }
-            try { _sf?.Kill(); } catch { }
-            _sf?.Dispose();
-            _sfIn?.Dispose();
-        }
-    }
-
-    // ── System tray ───────────────────────────────────────────────────────────────
-
-    sealed class TrayApp : IDisposable
-    {
-        readonly NotifyIcon _icon;
-        SettingsForm? _settingsForm;
-
-        public TrayApp()
-        {
-            Icon ico;
-            try
-            {
-                string iconPath = Path.Combine(
-                    Path.GetDirectoryName(Application.ExecutablePath)!,
-                    "..", "..", "..", "..", "icons", "icon16.png");
-                using var bmp = new Bitmap(iconPath);
-                ico = Icon.FromHandle(bmp.GetHicon());
-            }
-            catch { ico = SystemIcons.Application; }
-
-            var menu = new ContextMenuStrip();
-            var panelItem = new ToolStripMenuItem("Open Panel");
-            panelItem.Click += (_, _) =>
-            {
-                if (_settingsForm == null || _settingsForm.IsDisposed)
-                    _settingsForm = new SettingsForm();
-                _settingsForm.Show();
-                _settingsForm.BringToFront();
-            };
-            menu.Items.Insert(0, panelItem);
-            menu.Items.Insert(1, new ToolStripSeparator());
-            menu.Items.Add("View Logs", null, (_, _) =>
-            {
-                try { Process.Start(new ProcessStartInfo(DebugLog.LogPath) { UseShellExecute = true }); }
-                catch { }
-            });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Quit Chessist Engine", null, (_, _) => Application.Exit());
-
-            _icon = new NotifyIcon
-            {
-                Icon             = ico,
-                Text             = "Chessist Engine",
-                ContextMenuStrip = menu,
-                Visible          = true,
-            };
-        }
-
-        public void Dispose() { _icon.Visible = false; _icon.Dispose(); }
-    }
-
-    // ── Settings panel (WebView2 floating window) ─────────────────────────────────
-
-    sealed class SettingsForm : Form
-    {
-        Microsoft.Web.WebView2.WinForms.WebView2 _webView = null!;
-
-        public SettingsForm()
-        {
-            Text            = "Chessist Panel";
-            Width           = 420;
-            Height          = 520;
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            MaximizeBox     = false;
-            ShowInTaskbar   = false;
-            StartPosition   = FormStartPosition.Manual;
-
-            var screen = System.Windows.Forms.Screen.PrimaryScreen!.WorkingArea;
-            Location = new System.Drawing.Point(screen.Right - Width - 20, screen.Bottom - Height - 20);
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-
-            _webView = new Microsoft.Web.WebView2.WinForms.WebView2 { Dock = DockStyle.Fill };
-            _webView.CoreWebView2InitializationCompleted += (s, ev) =>
-            {
-                if (!ev.IsSuccess)
-                {
-                    MessageBox.Show(
-                        "WebView2 runtime not found.\nDownload: https://developer.microsoft.com/microsoft-edge/webview2/",
-                        "Chessist", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-                _webView.CoreWebView2.Settings.AreDevToolsEnabled = DebugLog.Enabled;
-
-                var uiPath = Path.Combine(
-                    Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "ui");
-
-                if (Directory.Exists(uiPath))
-                {
-                    _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                        "chessist.local", uiPath,
-                        Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
-                    _webView.CoreWebView2.Navigate("https://chessist.local/index.html");
-                }
-                else
-                {
-                    _webView.CoreWebView2.NavigateToString(
-                        "<html><body style='font-family:sans-serif;padding:20px'>" +
-                        "<h2>Chessist Panel</h2>" +
-                        "<p>UI not built yet. Run: <code>cd ui &amp;&amp; npm run build</code></p>" +
-                        "</body></html>");
-                }
-            };
-            Controls.Add(_webView);
-            _webView.EnsureCoreWebView2Async();
-        }
-
-        protected override void OnFormClosing(FormClosingEventArgs e)
-        {
-            if (e.CloseReason == CloseReason.UserClosing)
-            {
-                e.Cancel = true;
-                Hide();
-            }
-            else
-            {
-                base.OnFormClosing(e);
-            }
-        }
-    }
-
     // ── Debug logger ──────────────────────────────────────────────────────────────
 
     static class DebugLog
@@ -1093,11 +528,10 @@ namespace ChessistEngine
         {
             Enabled = true;
             AllocConsole();
-            Console.Title = "Chessist Engine — Debug";
+            Console.Title = "Chessist Overlay — Debug";
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("=== Chessist Engine Debug ===");
-            Console.WriteLine($"WebSocket: ws://127.0.0.1:{WsServer.Port}");
-            Console.WriteLine("Waiting for connection...\n");
+            Console.WriteLine("=== Chessist Overlay Debug ===");
+            Console.WriteLine("Reading draw commands from stdin...\n");
             Console.ResetColor();
         }
 
@@ -1106,7 +540,7 @@ namespace ChessistEngine
             try
             {
                 _writer = new StreamWriter(LogPath, append: false) { AutoFlush = true };
-                _writer.WriteLine($"=== Chessist Engine Log — {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===");
+                _writer.WriteLine($"=== Chessist Overlay Log — {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===");
             }
             catch { }
         }
@@ -1171,296 +605,15 @@ namespace ChessistEngine
         }
     }
 
-    // ── WebSocket server ──────────────────────────────────────────────────────────
-
-    sealed class WsServer
-    {
-        public const int Port = 27301;
-
-        readonly OverlayForm     _overlay;
-        readonly StockfishManager _sfManager;
-        readonly DataContractJsonSerializer _deser = new(typeof(WsMsg));
-
-        // Track all active connections for broadcasting eval results
-        readonly List<(WebSocket ws, SemaphoreSlim lk)> _clients = new();
-        readonly object _clientsLock = new();
-
-        static int _extensionClientCount = 0;
-        static readonly object _extLock = new();
-
-        public WsServer(OverlayForm overlay, StockfishManager sfManager)
-        {
-            _overlay   = overlay;
-            _sfManager = sfManager;
-            _sfManager.BroadcastAsync = BroadcastAsync;
-        }
-
-        public async Task RunAsync(CancellationToken ct)
-        {
-            var listener = new HttpListener();
-            listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
-            listener.Start();
-            ct.Register(listener.Stop);
-
-            while (!ct.IsCancellationRequested)
-            {
-                HttpListenerContext ctx;
-                try { ctx = await listener.GetContextAsync(); }
-                catch { break; }
-
-                if (ctx.Request.IsWebSocketRequest)
-                    _ = HandleAsync(ctx, ct);
-                else if (ctx.Request.RawUrl == "/ping")
-                {
-                    ctx.Response.StatusCode = 200;
-                    ctx.Response.Close();
-                }
-                else
-                    ctx.Response.Abort();
-            }
-        }
-
-        async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
-        {
-            var wsCtx = await ctx.AcceptWebSocketAsync(null);
-            var ws    = wsCtx.WebSocket;
-            var lk    = new SemaphoreSlim(1, 1);
-            var buf   = new byte[65536];
-            bool isExtensionClient = false;
-
-            lock (_clientsLock) _clients.Add((ws, lk));
-            DebugLog.Connect();
-
-            // Send current bootstrap status to newly connected client (broadcasts to all — idempotent)
-            int extCount; lock (_extLock) extCount = _extensionClientCount;
-            _sfManager.BroadcastBootstrapStatus(BroadcastAsync, extCount > 0);
-
-            try
-            {
-                while (ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
-                {
-                    var result = await ws.ReceiveAsync(new ArraySegment<byte>(buf), ct);
-                    if (result.MessageType == WebSocketMessageType.Close) break;
-
-                    int len  = result.Count;
-                    var json = Encoding.UTF8.GetString(buf, 0, len);
-
-                    WsMsg msg;
-                    try
-                    {
-                        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
-                        msg = (WsMsg)_deser.ReadObject(ms)!;
-                    }
-                    catch { continue; }
-
-                    if (DebugLog.Enabled)
-                        DebugLog.Message(msg.Type ?? (msg.PositionOnly ? "positionOnly" : "overlay"), len);
-
-                    // Dispatch based on message type
-                    switch (msg.Type)
-                    {
-                        case "evaluate":
-                            _sfManager.Evaluate(
-                                msg.Fen ?? "",
-                                msg.Depth > 0 ? msg.Depth : 18,
-                                msg.MultiPv > 0 ? msg.MultiPv : 1);
-                            break;
-
-                        case "stop":
-                            _sfManager.Stop();
-                            break;
-
-                        case "set_option":
-                            if (msg.Name != null && msg.Value != null)
-                                _sfManager.SetOption(msg.Name, msg.Value);
-                            break;
-
-                        case "identify":
-                            if (json.IndexOf("extension", StringComparison.OrdinalIgnoreCase) >= 0 && !isExtensionClient)
-                            {
-                                isExtensionClient = true;
-                                lock (_extLock) _extensionClientCount++;
-                                _sfManager.BroadcastBootstrapStatus(BroadcastAsync, _extensionClientCount > 0);
-                            }
-                            break;
-
-                        default:
-                            // Overlay position/visual update
-                            _overlay.Apply(msg);
-                            break;
-                    }
-                }
-            }
-            catch { }
-            finally
-            {
-                lock (_clientsLock) _clients.RemoveAll(c => c.ws == ws);
-                if (isExtensionClient)
-                {
-                    lock (_extLock) _extensionClientCount--;
-                    _sfManager.BroadcastBootstrapStatus(BroadcastAsync, _extensionClientCount > 0);
-                }
-                DebugLog.Disconnect();
-                _overlay.Apply(new WsMsg { Visible = false });
-                ws.Dispose();
-                lk.Dispose();
-            }
-        }
-
-        public async Task BroadcastAsync(string json)
-        {
-            if (json == null) return;
-            var bytes = Encoding.UTF8.GetBytes(json);
-
-            List<(WebSocket ws, SemaphoreSlim lk)> snapshot;
-            lock (_clientsLock) snapshot = new List<(WebSocket, SemaphoreSlim)>(_clients);
-
-            var tasks = new List<Task>(snapshot.Count);
-            foreach (var (ws, lk) in snapshot)
-                tasks.Add(SendSafeAsync(ws, lk, bytes));
-
-            await Task.WhenAll(tasks);
-        }
-
-        static async Task SendSafeAsync(WebSocket ws, SemaphoreSlim lk, byte[] bytes)
-        {
-            if (ws.State != WebSocketState.Open) return;
-            await lk.WaitAsync();
-            try
-            {
-                if (ws.State == WebSocketState.Open)
-                    await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
-            }
-            catch { }
-            finally { lk.Release(); }
-        }
-    }
-
-    // ── Native-messaging host bridge ──────────────────────────────────────────────
-    // When Chrome launches ChessistEngine.exe as a native-messaging host it passes
-    // the calling extension's origin (chrome-extension://ID/) as an argument.
-    // In that mode we skip all UI and run the stdio JSON loop instead.
-
-    static class HostBridge
-    {
-        static Stream In  => Console.OpenStandardInput();
-        static Stream Out => Console.OpenStandardOutput();
-
-        static string? Read()
-        {
-            var lb = new byte[4];
-            int read = 0;
-            while (read < 4)
-            {
-                int n = In.Read(lb, read, 4 - read);
-                if (n == 0) return null;
-                read += n;
-            }
-            int len = BitConverter.ToInt32(lb, 0);
-            var buf = new byte[len]; read = 0;
-            while (read < len)
-            {
-                int n = In.Read(buf, read, len - read);
-                if (n == 0) return null;
-                read += n;
-            }
-            return Encoding.UTF8.GetString(buf);
-        }
-
-        static void Write(string json)
-        {
-            var bytes = Encoding.UTF8.GetBytes(json);
-            Out.Write(BitConverter.GetBytes(bytes.Length), 0, 4);
-            Out.Write(bytes, 0, bytes.Length);
-            Out.Flush();
-        }
-
-        static bool IsRunning()
-        {
-            Mutex? m = null;
-            try   { return Mutex.TryOpenExisting("ChessistEngineInstance", out m); }
-            catch { return false; }
-            finally { m?.Dispose(); }
-        }
-
-        static void Launch(bool debug)
-        {
-            if (IsRunning())
-            {
-                Write("{\"type\":\"launch_result\",\"success\":true,\"already_running\":true}");
-                return;
-            }
-            try
-            {
-                var exe = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                var psi = new ProcessStartInfo(exe)
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow  = !debug,
-                    Arguments       = debug ? "-debug" : "",
-                };
-                Process.Start(psi);
-                Write("{\"type\":\"launch_result\",\"success\":true}");
-            }
-            catch (Exception ex)
-            {
-                var msg = ex.Message.Replace("\"", "'");
-                Write($"{{\"type\":\"launch_result\",\"success\":false,\"error\":\"{msg}\"}}");
-            }
-        }
-
-        static void Kill()
-        {
-            int self = Process.GetCurrentProcess().Id;
-            foreach (var p in Process.GetProcessesByName("ChessistEngine"))
-            {
-                try { if (p.Id != self) p.Kill(); } catch { }
-                p.Dispose();
-            }
-        }
-
-        public static void Run()
-        {
-            while (true)
-            {
-                var json = Read();
-                if (json == null) break;
-
-                var typeM  = System.Text.RegularExpressions.Regex.Match(json, "\"type\"\\s*:\\s*\"([^\"]+)\"");
-                var debugM = System.Text.RegularExpressions.Regex.Match(json, "\"debug\"\\s*:\\s*true");
-                string type  = typeM.Success ? typeM.Groups[1].Value : "";
-                bool   debug = debugM.Success;
-
-                switch (type)
-                {
-                    case "launch":  Launch(debug); break;
-                    case "restart": Kill(); Thread.Sleep(500); Launch(debug); break;
-                    case "kill":    Kill(); break;
-                    case "quit":    return;
-                }
-            }
-        }
-    }
-
     // ── Entry point ───────────────────────────────────────────────────────────────
 
     static class Program
     {
+        static OverlayForm? _overlay;
+
         [STAThread]
         static void Main(string[] args)
         {
-            // Host-bridge mode: Chrome passes "chrome-extension://..." as an argument
-            bool isHost = Array.Exists(args, a =>
-                a.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase) ||
-                a.Equals("-host", StringComparison.OrdinalIgnoreCase));
-
-            if (isHost) { HostBridge.Run(); return; }
-
-            // Prevent duplicate normal-mode instances
-            bool createdNew;
-            var mutex = new Mutex(true, "ChessistEngineInstance", out createdNew);
-            if (!createdNew) { mutex.Dispose(); return; }
-
             bool debug = Array.Exists(args, a => a.Equals("-debug", StringComparison.OrdinalIgnoreCase));
             if (debug) DebugLog.Init();
             DebugLog.OpenLogFile();
@@ -1468,20 +621,43 @@ namespace ChessistEngine
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            using var cts     = new CancellationTokenSource();
-            using var overlay = new OverlayForm();
-            using var tray    = new TrayApp();
-            using var sfMgr   = new StockfishManager();
-            var wsServer      = new WsServer(overlay, sfMgr);
+            _overlay = new OverlayForm();
 
-            Application.ApplicationExit += (_, _) => { cts.Cancel(); mutex.ReleaseMutex(); };
+            // Background thread reads newline-delimited JSON draw commands from stdin.
+            var reader = new Thread(StdinLoop) { IsBackground = true, Name = "StdinReader" };
+            reader.Start();
 
-            Task.Run(() => wsServer.RunAsync(cts.Token));
-            Task.Run(() => sfMgr.TryStart());
-
-            overlay.Show();
+            _overlay.Show();
             Application.Run();
-            mutex.Dispose();
+        }
+
+        static void StdinLoop()
+        {
+            var ser = new System.Runtime.Serialization.Json.DataContractJsonSerializer(typeof(WsMsg));
+            string? line;
+            var stdin = Console.In;
+            while ((line = stdin.ReadLine()) != null)
+            {
+                if (line.Length == 0) continue;
+                WsMsg msg;
+                try
+                {
+                    using var ms = new MemoryStream(Encoding.UTF8.GetBytes(line));
+                    msg = (WsMsg)ser.ReadObject(ms)!;
+                }
+                catch { continue; }
+
+                if (msg.Type == "quit") { Application.Exit(); return; }
+
+                var ov = _overlay;
+                if (ov != null && !ov.IsDisposed)
+                {
+                    try { ov.BeginInvoke((Action)(() => ov.Apply(msg))); }
+                    catch { /* form closing */ }
+                }
+            }
+            // stdin closed (parent exited) → quit
+            Application.Exit();
         }
     }
 }
