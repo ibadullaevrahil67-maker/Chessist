@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import Check from '../components/controls/Check'
+import Slider from '../components/controls/Slider'
 
 function Row({ label, children, value }) {
   return (
@@ -12,11 +14,8 @@ function Row({ label, children, value }) {
   )
 }
 
-const slider = { width: '100%', accentColor: 'rgb(var(--accent))', cursor: 'pointer' }
-const checkbox = { accentColor: 'rgb(var(--accent))', cursor: 'pointer', width: 15, height: 15 }
-
 function Toggle({ on, onChange }) {
-  return <input type="checkbox" checked={on} style={checkbox} onChange={e => onChange(e.target.checked)} />
+  return <Check checked={on} onChange={onChange} />
 }
 
 function Seg({ options, value, onChange }) {
@@ -47,7 +46,7 @@ export default function GamePage() {
 
       <Row label="Enabled"><Toggle on={s.enabled} onChange={v => set('enabled', v)} /></Row>
       <Row label="Depth" value={s.depth}>
-        <input type="range" min={10} max={30} step={1} value={s.depth} style={slider} onChange={e => set('depth', Number(e.target.value))} />
+        <Slider value={s.depth} min={10} max={30} onChange={v => set('depth', v)} />
       </Row>
       <Row label="Render mode">
         <Seg value={s.renderMode} onChange={v => set('renderMode', v)}
@@ -67,12 +66,10 @@ export default function GamePage() {
       <Row label="Auto-move"><Toggle on={s.autoMove} onChange={v => set('autoMove', v)} /></Row>
       <Row label="Instant move"><Toggle on={s.instantMove} onChange={v => set('instantMove', v)} /></Row>
       <Row label="Delay min (s)" value={s.autoMoveDelayMin.toFixed(1)}>
-        <input type="range" min={0} max={3} step={0.1} value={s.autoMoveDelayMin} disabled={s.instantMove}
-          style={{ ...slider, opacity: s.instantMove ? 0.4 : 1 }} onChange={e => set('autoMoveDelayMin', Number(e.target.value))} />
+        <Slider value={s.autoMoveDelayMin} min={0} max={3} step={0.1} disabled={s.instantMove} onChange={v => set('autoMoveDelayMin', v)} />
       </Row>
       <Row label="Delay max (s)" value={s.autoMoveDelayMax.toFixed(1)}>
-        <input type="range" min={0} max={5} step={0.1} value={s.autoMoveDelayMax} disabled={s.instantMove}
-          style={{ ...slider, opacity: s.instantMove ? 0.4 : 1 }} onChange={e => set('autoMoveDelayMax', Number(e.target.value))} />
+        <Slider value={s.autoMoveDelayMax} min={0} max={5} step={0.1} disabled={s.instantMove} onChange={v => set('autoMoveDelayMax', v)} />
       </Row>
       <Row label="Smart timing"><Toggle on={s.smartTiming} onChange={v => set('smartTiming', v)} /></Row>
 
@@ -82,18 +79,16 @@ export default function GamePage() {
       <Row label="Auto new game"><Toggle on={s.autoNewGame} onChange={v => set('autoNewGame', v)} /></Row>
       <Row label="Stealth mode"><Toggle on={s.stealthMode} onChange={v => set('stealthMode', v)} /></Row>
       <Row label="Target accuracy" value={`${s.targetAccuracy}%`}>
-        <input type="range" min={50} max={100} step={1} value={s.targetAccuracy} style={slider} onChange={e => set('targetAccuracy', Number(e.target.value))} />
+        <Slider value={s.targetAccuracy} min={50} max={100} onChange={v => set('targetAccuracy', v)} />
       </Row>
 
       <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', margin: '20px 0 8px', color: 'rgb(var(--fg-muted))' }}>WIN / LOSS BALANCE</div>
       <Row label="Balance W/L"><Toggle on={s.wlBalance} onChange={v => set('wlBalance', v)} /></Row>
       <Row label="Max wins in a row" value={s.maxConsecutiveWins}>
-        <input type="range" min={1} max={10} step={1} value={s.maxConsecutiveWins} disabled={!s.wlBalance}
-          style={{ ...slider, opacity: s.wlBalance ? 1 : 0.4 }} onChange={e => set('maxConsecutiveWins', Number(e.target.value))} />
+        <Slider value={s.maxConsecutiveWins} min={1} max={10} disabled={!s.wlBalance} onChange={v => set('maxConsecutiveWins', v)} />
       </Row>
       <Row label="Max losses in a row" value={s.maxConsecutiveLosses}>
-        <input type="range" min={1} max={10} step={1} value={s.maxConsecutiveLosses} disabled={!s.wlBalance}
-          style={{ ...slider, opacity: s.wlBalance ? 1 : 0.4 }} onChange={e => set('maxConsecutiveLosses', Number(e.target.value))} />
+        <Slider value={s.maxConsecutiveLosses} min={1} max={10} disabled={!s.wlBalance} onChange={v => set('maxConsecutiveLosses', v)} />
       </Row>
       <Row label="Random throws"><Toggle on={s.throwRandom} onChange={v => set('throwRandom', v)} /></Row>
       <Row label="Random losses"><Toggle on={s.lossRandom} onChange={v => set('lossRandom', v)} /></Row>

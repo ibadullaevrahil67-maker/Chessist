@@ -36,9 +36,31 @@ button:focus:not(:focus-visible) { outline: none; }
 /* Sidebar nav: give inactive items a clear hover surface. */
 .nav-item:not(.active):hover { background: rgb(var(--surface)) !important; color: rgb(var(--fg)) !important; }
 
-/* Range sliders: pointer + accent already set inline; smooth thumb. */
-input[type="range"] { cursor: pointer; }
-input[type="checkbox"] { cursor: pointer; }
+/* Custom slider (.cslider) — flat track (bg set inline) + square accent thumb. */
+input.cslider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+}
+input.cslider:disabled { cursor: default; }
+input.cslider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  margin-top: -4px;
+  background: #ffffff;
+  border: 2px solid rgb(var(--accent));
+  border-radius: 0;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+input.cslider::-webkit-slider-thumb:hover { transform: scale(1.12); }
+input.cslider:active::-webkit-slider-thumb { transform: scale(1.12); }
+input.cslider:disabled::-webkit-slider-thumb { border-color: rgb(var(--fg-dim)); cursor: default; }
+input.cslider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.4); }
 
 /* Dark, slim scrollbars for the scrolling content area. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
