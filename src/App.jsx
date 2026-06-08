@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import EvaluationPage from './pages/EvaluationPage'
+import GamePage from './pages/GamePage'
 import EnginePage from './pages/EnginePage'
 import SetupPage from './pages/SetupPage'
 import AboutPage from './pages/AboutPage'
@@ -30,6 +31,7 @@ export default function App() {
             </div>
           )}
           {page === 'evaluation' && <EvaluationPage ev={ev} status={status} />}
+          {page === 'game' && <GamePage />}
           {page === 'engine' && <EnginePage />}
           {page === 'setup' && <SetupPage status={status} />}
           {page === 'about' && <AboutPage />}

@@ -10,6 +10,7 @@ class Bridge {
     this.onComponent = onComponent
     this.wss = null
     this.extClients = new Set()
+    this.getGameSettings = null // set by main: () => gameSettings
   }
 
   start() {
@@ -30,6 +31,9 @@ class Bridge {
     if (msg.type === 'identify' && msg.role === 'extension') {
       this.extClients.add(ws)
       this.onComponent?.({ extensionConnected: true })
+      // Push current game settings to the freshly connected extension.
+      const data = this.getGameSettings?.()
+      if (data) { try { ws.send(JSON.stringify({ type: 'settings', data })) } catch {} }
       return
     }
     if (msg.type === 'evaluate') { this.engine.evaluate(msg.fen, msg.depth, msg.multiPv); return }
@@ -53,6 +57,14 @@ class Bridge {
   broadcastStatus(status) {
     const data = JSON.stringify({ type: 'engine_status', ...status })
     for (const ws of this.wss?.clients ?? []) {
+      if (ws.readyState === 1) { try { ws.send(data) } catch {} }
+    }
+  }
+
+  // Push game settings to every connected extension client.
+  broadcastSettings(settings) {
+    const data = JSON.stringify({ type: 'settings', data: settings })
+    for (const ws of this.extClients) {
       if (ws.readyState === 1) { try { ws.send(data) } catch {} }
     }
   }

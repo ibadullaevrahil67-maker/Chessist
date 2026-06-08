@@ -12,13 +12,30 @@ let engine = null
 let overlay = null
 let bridge = null
 
-// ── Engine settings persistence (userData/chessist-settings.json) ──────────────
-function settingsPath() { return path.join(app.getPath('userData'), 'chessist-settings.json') }
-function loadSettings() {
-  try { return JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) } catch { return {} }
+// ── Settings persistence (userData/chessist-settings.json = { engine, game }) ──
+// Game/display settings owned by the app and pushed to the extension over WS.
+const gameSettings = {
+  enabled: true,
+  depth: 18,
+  showBestMove: false,
+  showOpponentBestMove: false,
+  showAltArrows: true,
+  autoMove: false,
+  instantMove: false,
+  autoMoveDelayMin: 0.1,
+  autoMoveDelayMax: 0.3,
+  renderMode: 'overlay',   // 'overlay' | 'browser'
+  playerColor: 'auto',     // 'auto' | 'white' | 'black'
 }
-function saveSettings(obj) {
-  try { fs.writeFileSync(settingsPath(), JSON.stringify(obj, null, 2)) } catch {}
+
+function settingsPath() { return path.join(app.getPath('userData'), 'chessist-settings.json') }
+function loadAll() {
+  try { return JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) || {} } catch { return {} }
+}
+function saveAll() {
+  try {
+    fs.writeFileSync(settingsPath(), JSON.stringify({ engine: engine?.getSettings() ?? {}, game: gameSettings }, null, 2))
+  } catch {}
 }
 
 const componentStatus = {
@@ -71,9 +88,12 @@ async function startSubsystems() {
       bridge?.broadcastStatus(s)
     }
   )
-  // Restore saved engine settings before first start (applied on uciok).
-  Object.assign(engine.settings, loadSettings())
+  // Restore saved settings before first start (engine applied on uciok).
+  const saved = loadAll()
+  Object.assign(engine.settings, saved.engine || {})
+  Object.assign(gameSettings, saved.game || {})
   bridge = new Bridge(engine, overlay, (c) => pushStatus(c))
+  bridge.getGameSettings = () => gameSettings
   bridge.start()
   overlay.start()
 
@@ -104,8 +124,15 @@ function registerIpc() {
   ipcMain.handle('engine:get', () => engine?.getSettings() ?? {})
   ipcMain.handle('engine:set', (_e, { key, value }) => {
     engine?.applySetting(key, value)
-    if (engine) saveSettings(engine.getSettings())
+    saveAll()
     return engine?.getSettings() ?? {}
+  })
+  ipcMain.handle('game:get', () => gameSettings)
+  ipcMain.handle('game:set', (_e, { key, value }) => {
+    if (key in gameSettings) gameSettings[key] = value
+    saveAll()
+    bridge?.broadcastSettings(gameSettings)
+    return gameSettings
   })
   ipcMain.handle('stockfish:redownload', () => redownloadStockfish())
   ipcMain.handle('shell:open', (_e, url) => { try { shell.openExternal(url) } catch {} })

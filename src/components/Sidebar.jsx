@@ -1,7 +1,8 @@
-import { IconEval, IconEngine, IconSetup, IconAbout } from './icons'
+import { IconEval, IconGame, IconEngine, IconSetup, IconAbout } from './icons'
 
 const ITEMS = [
   { id: 'evaluation', label: 'Evaluation', Icon: IconEval },
+  { id: 'game',       label: 'Game',       Icon: IconGame },
   { id: 'engine',     label: 'Engine',     Icon: IconEngine },
   { id: 'setup',      label: 'Setup',      Icon: IconSetup },
   { id: 'about',      label: 'About',      Icon: IconAbout },

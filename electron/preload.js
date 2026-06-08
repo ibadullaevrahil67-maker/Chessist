@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('chessist', {
   getStatus: () => ipcRenderer.invoke('status:get'),
   getEngineSettings: () => ipcRenderer.invoke('engine:get'),
   setEngineOption: (key, value) => ipcRenderer.invoke('engine:set', { key, value }),
+  getGameSettings: () => ipcRenderer.invoke('game:get'),
+  setGameOption: (key, value) => ipcRenderer.invoke('game:set', { key, value }),
   redownloadStockfish: () => ipcRenderer.invoke('stockfish:redownload'),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   getExtensionPath: () => ipcRenderer.invoke('extension:path'),
