@@ -2,8 +2,7 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    tags: ['v*.*.*']
   workflow_dispatch:
 
 permissions:
@@ -12,7 +11,6 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -24,30 +22,17 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Build ChessistEngine
-        run: dotnet build engine/ChessistEngine.csproj -c Release
+      - name: Build overlay helper
+        run: dotnet build overlay/ChessistOverlay.csproj -c Release
 
-      - name: Build React UI
-        working-directory: ui
-        run: |
-          npm ci
-          npm run build
+      - name: Install app deps
+        run: npm ci
 
-      - name: Package release zip
-        shell: pwsh
-        run: |
-          $src = "engine/bin/Release/net48"
-          $zip = "chessist-engine-windows.zip"
-          $items = @(
-            "$src/ChessistEngine.exe",
-            "$src/ChessistEngine.exe.config",
-            "$src/ui"
-          )
-          Compress-Archive -Path $items -DestinationPath $zip -Force
-          Write-Host "Created $zip"
+      - name: Build installer
+        run: npm run dist
 
-      - name: Create GitHub Release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: chessist-engine-windows.zip
+          files: release/*.exe
           generate_release_notes: true
