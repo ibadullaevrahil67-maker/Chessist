@@ -3,15 +3,25 @@ const { WebSocketServer } = require('ws')
 const PORT = 27301
 
 // Routes messages between the browser extension and the engine/overlay.
+// Two kinds of extension clients:
+//   - content (role:'content') — a content script on a chess tab (active game)
+//   - presence (role:'extension') — the service worker (extension installed/running)
 class Bridge {
   constructor(engine, overlay, onComponent) {
     this.engine = engine
     this.overlay = overlay
     this.onComponent = onComponent
     this.wss = null
-    this.extClients = new Set()
+    this.contentClients = new Set()   // chess tabs
+    this.presenceClients = new Set()  // service worker(s)
     this.getGameSettings = null // set by main: () => gameSettings
     this.onPosition = null      // set by main: (msg) => void
+  }
+
+  _emit() {
+    const chessConnected = this.contentClients.size > 0
+    const extensionConnected = chessConnected || this.presenceClients.size > 0
+    this.onComponent?.({ extensionConnected, chessConnected })
   }
 
   start() {
@@ -19,16 +29,17 @@ class Bridge {
     this.wss.on('connection', (ws) => {
       ws.on('message', (raw) => this._onMessage(ws, raw))
       ws.on('close', () => {
-        if (this.extClients.delete(ws)) this.onComponent?.({ extensionConnected: this.extClients.size > 0 })
+        const a = this.contentClients.delete(ws)
+        const b = this.presenceClients.delete(ws)
+        if (a || b) this._emit()
       })
     })
     this.wss.on('error', (e) => this.onComponent?.({ wsError: e.message }))
 
-    // Heartbeat: ping extension clients every 20s. Incoming WS messages keep the
-    // MV3 service worker alive (idle timeout ~30s), so the presence connection — and
-    // thus extension detection — stays continuous regardless of the active tab.
+    // Heartbeat: ping every 20s. Incoming WS messages keep the MV3 service worker
+    // alive (idle ~30s), so presence detection stays continuous regardless of tab.
     this._ping = setInterval(() => {
-      for (const ws of this.extClients) {
+      for (const ws of this.wss?.clients ?? []) {
         if (ws.readyState === 1) { try { ws.send('{"type":"ping"}') } catch {} }
       }
     }, 20000)
@@ -38,15 +49,19 @@ class Bridge {
     let msg
     try { msg = JSON.parse(raw.toString()) } catch { return }
 
-    if (msg.type === 'identify' && msg.role === 'extension') {
-      this.extClients.add(ws)
-      this.onComponent?.({ extensionConnected: true })
-      // Push current game settings to the freshly connected extension.
-      const data = this.getGameSettings?.()
-      if (data) { try { ws.send(JSON.stringify({ type: 'settings', data })) } catch {} }
+    if (msg.type === 'identify') {
+      if (msg.role === 'content') {
+        this.contentClients.add(ws)
+        // Push current game settings to the freshly connected content script.
+        const data = this.getGameSettings?.()
+        if (data) { try { ws.send(JSON.stringify({ type: 'settings', data })) } catch {} }
+      } else {
+        this.presenceClients.add(ws) // service worker presence
+      }
+      this._emit()
       return
     }
-    // Current board position from the extension (authoritative; filters out
+    // Current board position from a content script (authoritative; filters out
     // speculative pre-warm evals on the app side).
     if (msg.type === 'position') { this.onPosition?.({ fen: msg.fen, flipped: !!msg.flipped }); return }
     if (msg.type === 'ping' || msg.type === 'pong') return
@@ -75,10 +90,10 @@ class Bridge {
     }
   }
 
-  // Push game settings to every connected extension client.
+  // Push game settings to connected content scripts.
   broadcastSettings(settings) {
     const data = JSON.stringify({ type: 'settings', data: settings })
-    for (const ws of this.extClients) {
+    for (const ws of this.contentClients) {
       if (ws.readyState === 1) { try { ws.send(data) } catch {} }
     }
   }

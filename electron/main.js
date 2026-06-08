@@ -19,7 +19,7 @@ const gameSettings = {
   depth: 18,
   showBestMove: false,
   showOpponentBestMove: false,
-  showAltArrows: true,
+  showAltArrows: false,    // default: only the best-move (purple) arrow
   autoMove: false,
   instantMove: false,
   autoMoveDelayMin: 0.1,
@@ -53,7 +53,8 @@ function saveAll() {
 const componentStatus = {
   stockfishOk: false,
   overlayOk: false,
-  extensionConnected: false,
+  extensionConnected: false,   // extension installed (service worker present)
+  chessConnected: false,       // a chess tab (content script) is active
   message: '',
 }
 

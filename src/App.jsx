@@ -9,7 +9,7 @@ import AboutPage from './pages/AboutPage'
 const piecesKey = (fen) => (fen ? fen.split(' ')[0] : '')
 
 export default function App() {
-  const [status, setStatus] = useState({ stockfishOk: false, overlayOk: false, extensionConnected: false, message: '' })
+  const [status, setStatus] = useState({ stockfishOk: false, overlayOk: false, extensionConnected: false, chessConnected: false, message: '' })
   const [ev, setEv] = useState(null)
   const [pos, setPos] = useState(null)        // { fen, flipped } — authoritative current position
   const [page, setPage] = useState('evaluation')

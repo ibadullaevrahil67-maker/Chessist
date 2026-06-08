@@ -13,43 +13,48 @@ function arrowsFromEval(ev) {
 }
 
 export default function EvaluationPage({ ev, pos, status }) {
+  const connected = status.chessConnected        // a chess tab is active
   const boardFen = pos?.fen || ev?.fen || START_FEN
   const flipped = !!pos?.flipped
-  const isPlaceholder = !pos?.fen && !ev?.fen
+  const hasPosition = !!(pos?.fen || ev?.fen)
 
   const evalMatches = ev?.fen && (!pos?.fen || piecesKey(ev.fen) === piecesKey(pos.fen))
-  const arrows = (ev && evalMatches) ? arrowsFromEval(ev) : []
+  const arrows = (connected && ev && evalMatches) ? arrowsFromEval(ev) : []
+
+  // Disconnected (no chess tab) → grayscale + dim. No game yet but connected → light dim.
+  const boardOpacity = !connected ? 0.45 : (hasPosition ? 1 : 0.4)
+  const boardFilter = !connected ? 'grayscale(1)' : (hasPosition ? 'none' : 'grayscale(0.4)')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16, gap: 12, overflow: 'hidden' }}>
       {/* header: eval panel or status line */}
       <div style={{ flexShrink: 0 }}>
-        {ev && evalMatches
+        {connected && ev && evalMatches
           ? <EvalPanel ev={ev} />
           : (
-            <div style={{ fontSize: 12, color: 'rgb(var(--fg-muted))' }}>
-              {status.extensionConnected ? 'Analyzing…' : 'Waiting for a game'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? 'rgb(var(--status-yellow))' : 'rgb(var(--status-red))' }} />
+              <span style={{ color: connected ? 'rgb(var(--fg-muted))' : 'rgb(var(--status-red))', fontWeight: 600 }}>
+                {connected ? 'Analyzing…' : 'Disconnected'}
+              </span>
             </div>
           )}
       </div>
 
       {/* board fills the remaining space, kept square and bounded by both axes */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{
-          height: '100%', maxWidth: '100%', aspectRatio: '1 / 1', position: 'relative',
-          opacity: isPlaceholder ? 0.35 : 1, filter: isPlaceholder ? 'grayscale(0.4)' : 'none',
-        }}>
+        <div style={{ height: '100%', maxWidth: '100%', aspectRatio: '1 / 1', position: 'relative', opacity: boardOpacity, filter: boardFilter }}>
           <Board fen={boardFen} arrows={arrows} flipped={flipped} fill />
         </div>
       </div>
 
-      {isPlaceholder && (
-        <div style={{ flexShrink: 0, textAlign: 'center', fontSize: 12, color: 'rgb(var(--fg-dim))', lineHeight: 1.6 }}>
-          {status.extensionConnected
-            ? 'Connected — make a move on chess.com or lichess.org.'
-            : 'Open a game on chess.com or lichess.org. If nothing connects, see the Setup tab.'}
-        </div>
-      )}
+      <div style={{ flexShrink: 0, textAlign: 'center', fontSize: 12, color: 'rgb(var(--fg-dim))', lineHeight: 1.6, minHeight: 18 }}>
+        {!connected
+          ? 'No chess tab. Open a game on chess.com or lichess.org.'
+          : !hasPosition
+          ? 'Connected — make a move to start analysis.'
+          : ''}
+      </div>
     </div>
   )
 }
