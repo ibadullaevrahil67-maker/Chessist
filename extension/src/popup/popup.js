@@ -9,7 +9,7 @@ function check() {
   ws.onopen = () => { if (settled) return; settled = true; clearTimeout(t); ok(); try { ws.close() } catch {} }
   ws.onerror = () => { if (settled) return; settled = true; clearTimeout(t); fail() }
 }
-function ok() { dot.className = 'dot ok'; status.textContent = 'Connected to Chessist' }
+function ok() { dot.className = 'dot ok'; status.textContent = 'Chessist app running' }
 function fail() { dot.className = 'dot off'; status.textContent = 'Chessist app not running' }
 
 check()

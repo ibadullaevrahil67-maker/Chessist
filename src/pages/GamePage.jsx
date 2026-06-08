@@ -51,7 +51,7 @@ export default function GamePage() {
       </Row>
       <Row label="Render mode">
         <Seg value={s.renderMode} onChange={v => set('renderMode', v)}
-          options={[{ value: 'overlay', label: 'Overlay' }, { value: 'browser', label: 'In-page' }]} />
+          options={[{ value: 'overlay', label: 'Overlay' }, { value: 'browser', label: 'In-page' }, { value: 'electron', label: 'App' }]} />
       </Row>
       <Row label="Player color">
         <Seg value={s.playerColor} onChange={v => set('playerColor', v)}
