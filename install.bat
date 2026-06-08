@@ -27,7 +27,7 @@ where dotnet >nul 2>&1
 if errorlevel 1 (
     echo  ERROR: .NET SDK was not found.
     echo  Install it from https://dotnet.microsoft.com/download then run this again.
-    echo  ^(Needed to build the transparent overlay; the app build also requires it.^)
+    echo  ^(Needed to build the transparent overlay helper.^)
     echo.
     pause & exit /b 1
 )
@@ -44,27 +44,32 @@ call npm run build:overlay
 if errorlevel 1 ( echo  ERROR: overlay build failed. & pause & exit /b 1 )
 
 echo.
-echo  [3/4] Building the Chessist app...
-call npm run pack
+echo  [3/4] Building the app (renderer)...
+call npm run build
 if errorlevel 1 ( echo  ERROR: app build failed. & pause & exit /b 1 )
 
 echo.
 echo  [4/4] Creating a Desktop shortcut...
-set "APPEXE=%ROOT%\release\win-unpacked\Chessist.exe"
-if not exist "%APPEXE%" (
-    echo  Built app not found at:
-    echo    %APPEXE%
-    echo  Check the release\ folder. Skipping shortcut.
+set "ELECTRON=%ROOT%\node_modules\electron\dist\electron.exe"
+if not exist "%ELECTRON%" (
+    echo  Electron runtime not found at:
+    echo    %ELECTRON%
+    echo  Skipping shortcut. You can still run:  npm run dev
     goto :done
 )
 powershell -NoProfile -Command ^
+    "$root='%ROOT%';" ^
+    "$el=Join-Path $root 'node_modules\electron\dist\electron.exe';" ^
     "$d=[Environment]::GetFolderPath('Desktop');" ^
-    "$s=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d 'Chessist.lnk'));" ^
-    "$s.TargetPath='%APPEXE%';" ^
-    "$s.WorkingDirectory=[System.IO.Path]::GetDirectoryName('%APPEXE%');" ^
-    "$s.IconLocation='%APPEXE%,0';" ^
+    "$w=New-Object -ComObject WScript.Shell;" ^
+    "$s=$w.CreateShortcut((Join-Path $d 'Chessist.lnk'));" ^
+    "$q=[char]34;" ^
+    "$s.TargetPath=$el;" ^
+    "$s.Arguments=$q+$root+$q+' --prod';" ^
+    "$s.WorkingDirectory=$root;" ^
+    "$s.IconLocation=$el;" ^
     "$s.Save()"
-if errorlevel 1 ( echo  Could not create the shortcut, but the app is built at %APPEXE%. ) else ( echo  Shortcut "Chessist" added to your Desktop. )
+if errorlevel 1 ( echo  Could not create the shortcut. ) else ( echo  Shortcut "Chessist" added to your Desktop. )
 
 :done
 echo.
@@ -72,8 +77,8 @@ echo  ============================================
 echo    Done.
 echo  ============================================
 echo.
-echo  1. Launch Chessist from the Desktop shortcut
-echo     (or run release\win-unpacked\Chessist.exe).
+echo  1. Launch Chessist from the Desktop shortcut.
+echo     (Keep this folder where it is - the app runs from here.)
 echo  2. In the app, open the Setup tab and follow the
 echo     "Browser extension" card to load the extension.
 echo  3. Open a game on chess.com or lichess.org.

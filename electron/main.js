@@ -6,7 +6,11 @@ const { Engine } = require('./engine')
 const { Overlay } = require('./overlay')
 const { Bridge } = require('./wsserver')
 
-const isDev = !app.isPackaged
+// --prod (or CHESSIST_PROD=1) forces production mode when running unpacked from
+// the cloned repo via the local Electron (install.bat) — loads dist/ instead of
+// the Vite dev server.
+const forceProd = process.argv.includes('--prod') || process.env.CHESSIST_PROD === '1'
+const isDev = !app.isPackaged && !forceProd
 let mainWindow = null
 let engine = null
 let overlay = null
