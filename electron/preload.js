@@ -4,6 +4,10 @@ contextBridge.exposeInMainWorld('chessist', {
   isDesktop: true,
   platform: process.platform,
   getStatus: () => ipcRenderer.invoke('status:get'),
+  getEngineSettings: () => ipcRenderer.invoke('engine:get'),
+  setEngineOption: (key, value) => ipcRenderer.invoke('engine:set', { key, value }),
+  redownloadStockfish: () => ipcRenderer.invoke('stockfish:redownload'),
+  openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   closeWindow: () => ipcRenderer.send('window:close'),
   onStatus: (cb) => {

@@ -32,6 +32,16 @@ class Engine {
     this.pvSlots = {}
     this.hashMb = opts.hashMb || defaultHashMb()
     this.threads = opts.threads || Math.max(1, os.cpus().length - 1)
+    // Engine settings owned by the desktop app (Engine page). Re-applied on every
+    // (re)start so they persist across engine restarts. Depth/MultiPV stay
+    // extension-driven and are NOT stored here.
+    this.settings = {
+      skillLevel: opts.skillLevel ?? 20,
+      limitStrength: opts.limitStrength ?? false,
+      elo: opts.elo ?? 1500,
+      threads: this.threads,
+      hash: this.hashMb,
+    }
   }
 
   start(stockfishPath) {
@@ -55,8 +65,7 @@ class Engine {
 
   _handle(line) {
     if (line === 'uciok') {
-      this._send(`setoption name Threads value ${this.threads}`)
-      this._send(`setoption name Hash value ${this.hashMb}`)
+      this._applySettings()
       this._send('setoption name MultiPV value 1')
       this._send('isready')
       return
@@ -100,6 +109,35 @@ class Engine {
   }
 
   setOption(name, value) { this._send(`setoption name ${name} value ${value}`) }
+
+  // Send all app-owned settings to the engine (called on each uciok).
+  _applySettings() {
+    const s = this.settings
+    this._send(`setoption name Threads value ${s.threads}`)
+    this._send(`setoption name Hash value ${s.hash}`)
+    this._send(`setoption name Skill Level value ${s.skillLevel}`)
+    this._send(`setoption name UCI_LimitStrength value ${s.limitStrength ? 'true' : 'false'}`)
+    if (s.limitStrength) this._send(`setoption name UCI_Elo value ${s.elo}`)
+  }
+
+  getSettings() { return { ...this.settings } }
+
+  // Update one app-owned setting; applies live and persists for the next restart.
+  applySetting(key, value) {
+    if (!(key in this.settings)) return
+    this.settings[key] = value
+    if (key === 'threads') this.threads = value
+    if (key === 'hash') this.hashMb = value
+    switch (key) {
+      case 'skillLevel':    this.setOption('Skill Level', value); break
+      case 'limitStrength': this.setOption('UCI_LimitStrength', value ? 'true' : 'false')
+                            if (value) this.setOption('UCI_Elo', this.settings.elo); break
+      case 'elo':           if (this.settings.limitStrength) this.setOption('UCI_Elo', value); break
+      case 'threads':       this.setOption('Threads', value); break
+      case 'hash':          this.setOption('Hash', value); break
+    }
+  }
+
   stop() { this._send('stop') }
   kill() { try { this.proc?.kill() } catch {} }
 }
