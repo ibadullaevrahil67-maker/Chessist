@@ -1970,16 +1970,20 @@
       if (currentFen && isEnabled) { evalBar?.classList.add('loading'); requestEval(currentFen); }
     }
     if (data.renderMode !== undefined) {
-      overlayMode = (data.renderMode === 'overlay');
-      if (overlayMode) {
-        _connectEngineWs();
-        if (evalBar) evalBar.style.display = 'none';
-        clearArrow();
-        clearMoveIcon();
-      } else {
-        if (evalBar) evalBar.style.display = isEnabled ? 'block' : 'none';
-        if (_overlayWs && _overlayWs.readyState === WebSocket.OPEN)
-          try { _overlayWs.send(JSON.stringify({ positionOnly: true, visible: false })); } catch (e) {}
+      const newOverlay = (data.renderMode === 'overlay');
+      if (newOverlay !== overlayMode) {
+        overlayMode = newOverlay;
+        if (overlayMode) {
+          _teardownDomElements();
+          _connectOverlayWs();
+        } else {
+          _disconnectOverlayWs();
+          const board = findBoard();
+          if (board) {
+            createEvalBar(board);
+            createArrowOverlay(board);
+          }
+        }
       }
     }
   }
