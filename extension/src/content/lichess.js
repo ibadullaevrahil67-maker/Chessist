@@ -1393,6 +1393,15 @@
 
     log('Chessist: Requesting eval for FEN:', fen, isMouseRelease ? '(mouse release)' : '');
 
+    // Tell the desktop app the authoritative current position (filters pre-warm evals app-side).
+    if (_overlayWs?.readyState === WebSocket.OPEN) {
+      try {
+        const cg = document.querySelector('cg-wrap') || document.querySelector('.cg-wrap');
+        const _flip = !!(cg && cg.classList.contains('orientation-black'));
+        _overlayWs.send(JSON.stringify({ type: 'position', fen, flipped: _flip }));
+      } catch (e) {}
+    }
+
     // Use Chessist Engine via WebSocket when connected
     if (_overlayWs?.readyState === WebSocket.OPEN) {
       try {

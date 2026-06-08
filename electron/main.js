@@ -106,6 +106,7 @@ async function startSubsystems() {
   Object.assign(gameSettings, saved.game || {})
   bridge = new Bridge(engine, overlay, (c) => pushStatus(c))
   bridge.getGameSettings = () => gameSettings
+  bridge.onPosition = (p) => sendToRenderer('position', p)
   bridge.start()
   overlay.start()
 
@@ -131,6 +132,10 @@ async function redownloadStockfish() {
 
 function registerIpc() {
   ipcMain.on('window:minimize', () => mainWindow?.minimize())
+  ipcMain.on('window:maximize', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize()
+  })
   ipcMain.on('window:close', () => mainWindow?.close())
   ipcMain.handle('status:get', () => componentStatus)
   ipcMain.handle('engine:get', () => engine?.getSettings() ?? {})

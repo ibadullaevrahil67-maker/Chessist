@@ -27,15 +27,17 @@ function parseFen(fen) {
   return grid // grid[0] = rank 8 (top), grid[7] = rank 1
 }
 
-// square "e4" → center in an 8x8 viewBox (white's perspective)
-function center(sq) {
+// square "e4" → center in an 8x8 viewBox (respecting board orientation)
+function center(sq, flipped) {
   const file = sq.charCodeAt(0) - 97       // a=0..h=7
   const rank = parseInt(sq[1], 10) - 1      // 1=0..8=7
-  return { x: file + 0.5, y: (7 - rank) + 0.5 }
+  const x = flipped ? (7 - file) + 0.5 : file + 0.5
+  const y = flipped ? rank + 0.5 : (7 - rank) + 0.5
+  return { x, y }
 }
 
-function Arrow({ from, to, idx }) {
-  const a = center(from), b = center(to)
+function Arrow({ from, to, idx, flipped }) {
+  const a = center(from, flipped), b = center(to, flipped)
   const dx = b.x - a.x, dy = b.y - a.y
   const len = Math.hypot(dx, dy)
   if (len < 0.01) return null
@@ -72,13 +74,14 @@ function Piece({ piece }) {
   )
 }
 
-export default function Board({ fen, arrows = [] }) {
+export default function Board({ fen, arrows = [], flipped = false, maxWidth = 360 }) {
   if (!fen) return null
-  const grid = parseFen(fen)
+  let grid = parseFen(fen)
+  if (flipped) grid = grid.map(row => [...row].reverse()).reverse() // black's perspective
   const hasBoardImg = !!BOARD_IMG
 
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: 320, margin: '0 auto', aspectRatio: '1 / 1' }}>
+    <div style={{ position: 'relative', width: '100%', maxWidth, margin: '0 auto', aspectRatio: '1 / 1' }}>
       {hasBoardImg && (
         <img src={BOARD_IMG} alt="" draggable={false}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill' }} />
@@ -101,7 +104,7 @@ export default function Board({ fen, arrows = [] }) {
         }))}
       </div>
       <svg viewBox="0 0 8 8" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-        {arrows.map((a, i) => <Arrow key={i} from={a.from} to={a.to} idx={a.idx ?? i} />)}
+        {arrows.map((a, i) => <Arrow key={i} from={a.from} to={a.to} idx={a.idx ?? i} flipped={flipped} />)}
       </svg>
     </div>
   )

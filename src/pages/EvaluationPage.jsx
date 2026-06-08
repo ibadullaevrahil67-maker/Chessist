@@ -2,6 +2,7 @@ import EvalPanel from '../components/EvalPanel'
 import Board from '../components/Board'
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+const piecesKey = (fen) => (fen ? fen.split(' ')[0] : '')
 
 function arrowsFromEval(ev) {
   const moves = (ev.multiPvMoves && ev.multiPvMoves.length) ? ev.multiPvMoves : (ev.bestMove ? [ev.bestMove] : [])
@@ -11,37 +12,38 @@ function arrowsFromEval(ev) {
     .map((m, i) => ({ from: m.slice(0, 2), to: m.slice(2, 4), idx: i }))
 }
 
-export default function EvaluationPage({ ev, status }) {
-  if (ev) {
-    return (
-      <div style={{ padding: 16 }}>
-        <EvalPanel ev={ev} />
-        {ev.fen && (
-          <div style={{ marginTop: 16 }}>
-            <Board fen={ev.fen} arrows={arrowsFromEval(ev)} />
-          </div>
-        )}
-      </div>
-    )
-  }
+export default function EvaluationPage({ ev, pos, status }) {
+  // Board is driven by the authoritative current position (pos) when we have it,
+  // falling back to the eval's FEN, then the start position placeholder.
+  const boardFen = pos?.fen || ev?.fen || START_FEN
+  const flipped = !!pos?.flipped
+  const isPlaceholder = !pos?.fen && !ev?.fen
 
-  // No eval yet — show a dimmed placeholder board + a contextual hint.
-  const connected = status.extensionConnected
-  const hint = connected
-    ? 'Waiting for a position — make a move on chess.com or lichess.org.'
-    : 'Open a game on chess.com or lichess.org. If nothing connects, load the extension from the Setup tab.'
+  // Show arrows only when the eval matches the board we're displaying.
+  const evalMatches = ev?.fen && (!pos?.fen || piecesKey(ev.fen) === piecesKey(pos.fen))
+  const arrows = (ev && evalMatches) ? arrowsFromEval(ev) : []
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
-      <div style={{ opacity: 0.35, filter: 'grayscale(0.4)', width: '100%', pointerEvents: 'none' }}>
-        <Board fen={START_FEN} arrows={[]} />
+    <div style={{ padding: 16 }}>
+      {ev && evalMatches
+        ? <EvalPanel ev={ev} />
+        : (
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid rgb(var(--border))', fontSize: 12, color: 'rgb(var(--fg-muted))' }}>
+            {status.extensionConnected ? 'Analyzing…' : 'Waiting for a game'}
+          </div>
+        )}
+
+      <div style={{ marginTop: 16, opacity: isPlaceholder ? 0.35 : 1, filter: isPlaceholder ? 'grayscale(0.4)' : 'none' }}>
+        <Board fen={boardFen} arrows={arrows} flipped={flipped} maxWidth={440} />
       </div>
-      <div style={{ textAlign: 'center', maxWidth: 300, lineHeight: 1.7 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'rgb(var(--fg-muted))', marginBottom: 4 }}>
-          {connected ? 'Connected — no position yet' : 'Waiting for a game'}
+
+      {isPlaceholder && (
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'rgb(var(--fg-dim))', lineHeight: 1.7 }}>
+          {status.extensionConnected
+            ? 'Connected — make a move on chess.com or lichess.org.'
+            : 'Open a game on chess.com or lichess.org. If nothing connects, see the Setup tab.'}
         </div>
-        <div style={{ fontSize: 12, color: 'rgb(var(--fg-dim))' }}>{hint}</div>
-      </div>
+      )}
     </div>
   )
 }

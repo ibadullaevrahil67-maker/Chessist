@@ -11,6 +11,7 @@ class Bridge {
     this.wss = null
     this.extClients = new Set()
     this.getGameSettings = null // set by main: () => gameSettings
+    this.onPosition = null      // set by main: (msg) => void
   }
 
   start() {
@@ -45,6 +46,10 @@ class Bridge {
       if (data) { try { ws.send(JSON.stringify({ type: 'settings', data })) } catch {} }
       return
     }
+    // Current board position from the extension (authoritative; filters out
+    // speculative pre-warm evals on the app side).
+    if (msg.type === 'position') { this.onPosition?.({ fen: msg.fen, flipped: !!msg.flipped }); return }
+    if (msg.type === 'ping' || msg.type === 'pong') return
     if (msg.type === 'evaluate') { this.engine.evaluate(msg.fen, msg.depth, msg.multiPv); return }
     if (msg.type === 'set_option') { this.engine.setOption(msg.name, msg.value); return }
     if (msg.type === 'stop') { this.engine.stop(); return }

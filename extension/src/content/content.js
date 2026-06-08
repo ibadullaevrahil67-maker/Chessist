@@ -679,6 +679,12 @@
   }
 
   // Find the chess board element
+  // True when the board is shown from Black's perspective (Black at the bottom).
+  function _isBoardFlipped() {
+    const b = document.querySelector('wc-chess-board') || document.querySelector('chess-board');
+    return !!(b && (b.classList.contains('flipped') || b.getAttribute('board-orientation') === 'black'));
+  }
+
   function findBoard() {
     // Try different selectors used by Chess.com
     const selectors = [
@@ -2405,6 +2411,12 @@
     }
 
     log('Chessist: Requesting eval for FEN:', fen, isMouseRelease ? '(mouse release)' : '');
+
+    // Tell the desktop app the authoritative current position so it can ignore
+    // speculative pre-warm evals (which are for future positions).
+    if (_overlayWs?.readyState === WebSocket.OPEN) {
+      try { _overlayWs.send(JSON.stringify({ type: 'position', fen, flipped: _isBoardFlipped() })); } catch (e) {}
+    }
 
     // Use Chessist Engine via WebSocket when connected (lower latency, no IPC)
     if (_overlayWs?.readyState === WebSocket.OPEN) {

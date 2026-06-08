@@ -1,14 +1,12 @@
-import { IconEval, IconGame, IconEngine, IconSetup, IconAbout } from './icons'
+import { IconEval, IconGame, IconSetup, IconAbout } from './icons'
 
 const ITEMS = [
   { id: 'evaluation', label: 'Evaluation', Icon: IconEval },
-  { id: 'game',       label: 'Game',       Icon: IconGame },
-  { id: 'engine',     label: 'Engine',     Icon: IconEngine },
   { id: 'setup',      label: 'Setup',      Icon: IconSetup },
   { id: 'about',      label: 'About',      Icon: IconAbout },
 ]
 
-export default function Sidebar({ page, setPage, status }) {
+export default function Sidebar({ page, setPage, status, onSettings }) {
   const ready = status.stockfishOk && status.extensionConnected
   const dotColor = ready ? 'rgb(var(--status-green))' : 'rgb(var(--status-yellow))'
   const dotGlow = ready ? '0 0 6px rgba(34,197,94,0.7)' : '0 0 6px rgba(234,179,8,0.7)'
@@ -40,6 +38,16 @@ export default function Sidebar({ page, setPage, status }) {
           )
         })}
       </nav>
+      <button onClick={onSettings} className="nav-item"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 16px',
+          background: 'transparent', border: 'none', borderLeft: '2px solid transparent',
+          borderTop: '1px solid rgb(var(--border))',
+          color: 'rgb(var(--fg-muted))', cursor: 'pointer', fontSize: 13, fontWeight: 500, textAlign: 'left',
+        }}>
+        <IconGame style={{ width: 16, height: 16, color: 'rgb(var(--fg-dim))' }} />
+        Settings
+      </button>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
         borderTop: '1px solid rgb(var(--border))', fontSize: 11, color: 'rgb(var(--fg-muted))',
