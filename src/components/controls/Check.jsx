@@ -8,7 +8,7 @@ export default function Check({ checked, onChange, disabled = false }) {
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       style={{
-        width: 18, height: 18, flexShrink: 0, padding: 0,
+        width: 18, height: 18, flexShrink: 0, padding: 0, borderRadius: 5,
         border: `1px solid ${checked ? 'rgb(var(--accent))' : 'rgb(var(--border))'}`,
         background: checked ? 'rgb(var(--accent))' : 'transparent',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

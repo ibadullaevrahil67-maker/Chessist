@@ -30,6 +30,7 @@ export default function SettingsModal({ onClose }) {
         style={{
           width: '100%', maxWidth: 460, maxHeight: '82vh', display: 'flex', flexDirection: 'column',
           background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))',
+          borderRadius: 'var(--radius)', overflow: 'hidden',
           boxShadow: '0 12px 48px rgba(0,0,0,0.5)',
         }}
       >

@@ -82,8 +82,8 @@ export default function Board({ fen, arrows = [], flipped = false, maxWidth = 36
 
   // fill: occupy the parent (which enforces the square). Otherwise center with a max width.
   const outer = fill
-    ? { position: 'relative', width: '100%', height: '100%' }
-    : { position: 'relative', width: '100%', maxWidth, margin: '0 auto', aspectRatio: '1 / 1' }
+    ? { position: 'relative', width: '100%', height: '100%', borderRadius: 'var(--radius)', overflow: 'hidden' }
+    : { position: 'relative', width: '100%', maxWidth, margin: '0 auto', aspectRatio: '1 / 1', borderRadius: 'var(--radius)', overflow: 'hidden' }
 
   return (
     <div style={outer}>

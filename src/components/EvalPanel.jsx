@@ -21,7 +21,7 @@ export default function EvalPanel({ ev }) {
   return (
     <div>
       {/* eval bar */}
-      <div style={{ height: 6, background: 'rgb(var(--surface))', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ height: 6, background: 'rgb(var(--surface))', position: 'relative', overflow: 'hidden', borderRadius: 999 }}>
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: `${fill}%`,
           background: 'rgb(var(--accent))', boxShadow: '0 0 8px rgba(var(--accent-rgb),0.55)', transition: 'width 0.25s',

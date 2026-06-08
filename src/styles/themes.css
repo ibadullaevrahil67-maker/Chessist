@@ -9,4 +9,6 @@
   --status-green: 34 197 94;
   --status-yellow: 234 179 8;
   --status-red: 239 68 68;
+  --radius: 10px;       /* cards, modal, board */
+  --radius-sm: 6px;     /* buttons, inputs, segmented controls */
 }

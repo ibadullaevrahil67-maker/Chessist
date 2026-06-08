@@ -36,12 +36,23 @@ button:focus:not(:focus-visible) { outline: none; }
 /* Sidebar nav: give inactive items a clear hover surface. */
 .nav-item:not(.active):hover { background: rgb(var(--surface)) !important; color: rgb(var(--fg)) !important; }
 
+/* Settings section card + inset row dividers (last row borderless). */
+.scard {
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--surface));
+  border-radius: var(--radius);
+  padding: 2px 14px 6px;
+  margin-bottom: 12px;
+}
+.srow { border-bottom: 1px solid rgb(var(--border)); }
+.scard .srow:last-child { border-bottom: none; }
+
 /* Custom slider (.cslider) — flat track (bg set inline) + square accent thumb. */
 input.cslider {
   -webkit-appearance: none;
   appearance: none;
   height: 6px;
-  border-radius: 0;
+  border-radius: 999px;
   outline: none;
   cursor: pointer;
 }
@@ -53,7 +64,7 @@ input.cslider::-webkit-slider-thumb {
   margin-top: -4px;
   background: #ffffff;
   border: 2px solid rgb(var(--accent));
-  border-radius: 0;
+  border-radius: 50%;
   cursor: pointer;
   transition: transform 120ms ease;
 }

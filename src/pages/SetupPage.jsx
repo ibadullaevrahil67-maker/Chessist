@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const btn = {
-  padding: '7px 12px', fontSize: 12, fontWeight: 600,
+  padding: '7px 12px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--radius-sm)',
   background: 'rgb(var(--bg))', color: 'rgb(var(--fg))',
   border: '1px solid rgb(var(--border))', cursor: 'pointer',
 }
@@ -16,11 +16,11 @@ const STATUS = {
 function ModuleCard({ title, state, statusLabel, children }) {
   const s = STATUS[state] || STATUS.off
   return (
-    <div style={{ marginBottom: 14, border: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))' }}>
+    <div style={{ marginBottom: 14, border: '1px solid rgb(var(--border))', background: 'rgb(var(--surface))', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, boxShadow: s.glow, flexShrink: 0 }} />
         <span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{title}</span>
-        <span style={{ fontSize: 12, fontFamily: 'monospace', color: s.color }}>{statusLabel}</span>
+        <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: s.color }}>{statusLabel}</span>
       </div>
       <div style={{ borderTop: '1px solid rgb(var(--border))', padding: 14 }}>{children}</div>
     </div>
@@ -91,7 +91,7 @@ function ExtensionModule({ status }) {
           <Step n={3}>Click <strong style={{ color: 'rgb(var(--fg))' }}>Load unpacked</strong> and select the folder below.</Step>
 
           {extPath && (
-            <div style={{ margin: '10px 0', padding: '8px 10px', background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))', fontFamily: 'monospace', fontSize: 11, color: 'rgb(var(--fg-muted))', wordBreak: 'break-all' }}>
+            <div style={{ margin: '10px 0', padding: '8px 10px', background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: 11, color: 'rgb(var(--fg-muted))', wordBreak: 'break-all' }}>
               {extPath}
             </div>
           )}
