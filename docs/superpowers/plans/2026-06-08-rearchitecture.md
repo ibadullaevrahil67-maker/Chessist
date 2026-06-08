@@ -215,7 +215,7 @@ In `manifest.json`, add the `"key"` field as the second line (after the opening 
   "name": "Chessist",
   "version": "1.3.0",
   "key": "MIIBITANBgkqhkiG9w0BAQEFAAOCAQ4AMIIBCQKCAQEAxHFGKPG8F8bVYHOvHJuXrzzoulC8atmS0+o8G0jhzTktpblVSKcj5Ol9fByVw2PKgTdEuIT8CrkQIIZIC89fr7gyRk9KqALefvtETUuDIHZsp53jxqT54DIwrjafaCgpOOaQezVZYw2YVJP7aA+nQPFRvyfizrKxtOrcYMSckHEYQ8FA/BfEmGRcTUdGqRihXSMpXZc62BAFD8/TZzLW+6tRKvRI6o0sOjxHLlqOzXQ2CyfTjvF9Erl3Xuzr2xFeHcK+3JpnELHEk6BEVbC/40w7JLMzGXREhszcHRMQxYSnk4QKydDEYNPDUyNM+7Xc1cgqraqNhTwgQCPJ0lvZkQICAQE=",
-  "description": "Live chess evaluation bar for Chess.com and Lichess - powered by Stockfish. Created by lurimous.",
+  "description": "Live chess evaluation bar for Chess.com and Lichess - powered by Stockfish. Created by imluri.",
   ...
 ```
 
@@ -1683,7 +1683,7 @@ Replace requirements and install steps:
 ## Quick Start
 
 ### 1. Clone
-git clone https://github.com/lurimous/Chessist.git
+git clone https://github.com/imluri/Chessist.git
 
 ### 2. Load the extension
 1. Open chrome://extensions (or brave://extensions)

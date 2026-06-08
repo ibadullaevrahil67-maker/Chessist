@@ -75,5 +75,5 @@ Chessist/
 
 ## Credits
 
-Created by [lurimous](https://github.com/lurimous/). Powered by
+Created by [imluri](https://github.com/imluri/). Powered by
 [Stockfish](https://stockfishchess.org/) (GPL, downloaded at first run). MIT licensed (app + extension).

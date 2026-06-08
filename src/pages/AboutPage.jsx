@@ -32,7 +32,7 @@ export default function AboutPage() {
         <Link href="https://stockfishchess.org/">Stockfish (GPL)</Link>
       </div>
       <p style={{ marginTop: 20, fontSize: 12, color: 'rgb(var(--fg-dim))' }}>
-        Created by lurimous · MIT licensed (app + extension) · Stockfish is GPL, downloaded at first run.
+        Created by imluri · MIT licensed (app + extension) · Stockfish is GPL, downloaded at first run.
       </p>
     </div>
   )
