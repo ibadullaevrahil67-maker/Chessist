@@ -1,0 +1,40 @@
+{
+  "name": "chessist",
+  "version": "2.0.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k -n VITE,ELECTRON -c green,magenta \"vite\" \"wait-on tcp:5173 && electron .\"",
+    "vite": "vite",
+    "electron": "electron .",
+    "build": "vite build",
+    "dist": "vite build && electron-builder",
+    "build:overlay": "powershell -ExecutionPolicy Bypass -File scripts/build-overlay.ps1",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.3",
+    "vitest": "^2.1.8",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "dev.chessist.app",
+    "productName": "Chessist",
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "extraResources": [
+      { "from": "overlay/bin/Release/net48/ChessistOverlay.exe", "to": "overlay/ChessistOverlay.exe" }
+    ],
+    "win": { "target": "nsis" },
+    "directories": { "output": "release" }
+  }
+}

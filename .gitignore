@@ -1,7 +1,8 @@
-engine/bin/
-engine/obj/
-ui/node_modules/
-native-host/__pycache__/
+node_modules/
+dist/
+release/
+overlay/bin/
+overlay/obj/
 *.log
 *.pdb
 *.ini
