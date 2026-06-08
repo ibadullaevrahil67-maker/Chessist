@@ -7,6 +7,10 @@
 - **Overlay is now a slim C# helper** (`ChessistOverlay.exe`) driven by the desktop app over stdin — same transparent, screen-capture-invisible window
 - **No setup.bat, no native messaging** — the app downloads Stockfish on first run; the extension is a pure WebSocket client
 - **Faster within a game** — one persistent Stockfish process with a large hash and multiple threads; the transposition table is reused across moves and reset only on a new game
+- **Settings live in the app** — a sidebar with Evaluation, Game, Engine, Setup, About; the app is the single settings authority and pushes settings to the extension over WS. The extension popup is now just a connectivity indicator, and its options page is gone
+- **Three render modes** — *Overlay* (transparent native window), *In-page* (drawn on the chess site), or *App* (the desktop window draws its own board + best-move arrows; nothing in the browser)
+- **Guided extension install** — the installer bundles the extension; the Setup tab reveals the folder and walks through loading it
+- **Bundled font + logo** — Instrument Sans as the app font; Chessist logo for the window/installer icon, title bar, and About
 - **Repo reorganized** — Electron app at root, browser extension under `extension/`, overlay under `overlay/`
 - Removed the C# engine, native-messaging host, and WASM remnants
 
