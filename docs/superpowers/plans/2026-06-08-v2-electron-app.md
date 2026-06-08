@@ -718,6 +718,16 @@ describe('parseInfoLine', () => {
     expect(parseInfoLine('info string NNUE evaluation using nn-xxxx.nnue')).toBeNull()
   })
 })
+
+import { defaultHashMb } from './engine.js'
+
+describe('defaultHashMb', () => {
+  it('returns a value clamped to [128, 1024]', () => {
+    const v = defaultHashMb()
+    expect(v).toBeGreaterThanOrEqual(128)
+    expect(v).toBeLessThanOrEqual(1024)
+  })
+})
 ```
 
 - [ ] **Step 2: Run test, expect failure**
@@ -731,6 +741,7 @@ Expected: FAIL (`parseInfoLine` not exported).
 
 ```javascript
 const { spawn } = require('child_process')
+const os = require('os')
 
 function parseInfoLine(line) {
   const out = {}
@@ -746,8 +757,15 @@ function parseInfoLine(line) {
   return (out.cp !== undefined || out.mate !== undefined) ? out : null
 }
 
+// Pick a sensible default Hash (MB) from available RAM, capped.
+function defaultHashMb() {
+  const freeMb = Math.floor(os.totalmem() / (1024 * 1024))
+  // up to 1/8 of RAM, clamped to [128, 1024]
+  return Math.max(128, Math.min(1024, Math.floor(freeMb / 8)))
+}
+
 class Engine {
-  constructor(onEval, onStatus) {
+  constructor(onEval, onStatus, opts = {}) {
     this.onEval = onEval
     this.onStatus = onStatus
     this.proc = null
@@ -756,6 +774,9 @@ class Engine {
     this.multipv = 1
     this.curFen = null
     this.pvSlots = {}
+    // Performance config — persistent process + big hash + many threads.
+    this.hashMb = opts.hashMb || defaultHashMb()
+    this.threads = opts.threads || Math.max(1, os.cpus().length - 1)
   }
 
   start(stockfishPath) {
@@ -778,8 +799,19 @@ class Engine {
   _send(cmd) { this.proc?.stdin.write(cmd + '\n') }
 
   _handle(line) {
-    if (line === 'uciok') { this._send('setoption name MultiPV value 1'); this._send('isready'); return }
-    if (line === 'readyok') { this.ready = true; this.onStatus?.({ status: 'ready', message: 'Engine ready' }); return }
+    if (line === 'uciok') {
+      // Performance options applied once, before the first search.
+      this._send(`setoption name Threads value ${this.threads}`)
+      this._send(`setoption name Hash value ${this.hashMb}`)
+      this._send('setoption name MultiPV value 1')
+      this._send('isready')
+      return
+    }
+    if (line === 'readyok') {
+      this.ready = true
+      this.onStatus?.({ status: 'ready', message: 'Engine ready' })
+      return
+    }
     if (line.startsWith('info depth')) {
       const ev = parseInfoLine(line)
       if (!ev || (ev.depth || 0) < 5) return
@@ -793,6 +825,10 @@ class Engine {
     }
   }
 
+  // Evaluate a position. IMPORTANT: never sends `ucinewgame` here — the transposition
+  // table is preserved across moves so each new position reuses the search tree from
+  // the previous one (and from speculative PV pre-warm evals). This is the main
+  // "reuse the same game session" speedup. Resetting only happens in newGame().
   evaluate(fen, depth, multipv) {
     if (!this.ready) return
     if (depth) this.depth = depth
@@ -804,12 +840,23 @@ class Engine {
     this._send('go depth ' + this.depth)
   }
 
+  // Call ONLY when a genuinely new game starts (board reset to the initial position).
+  // Clears Stockfish's hash so stale entries from the previous game don't mislead it.
+  newGame() {
+    if (!this.ready) return
+    this._send('stop')
+    this._send('ucinewgame')
+    this._send('isready')
+    this.curFen = null
+    this.pvSlots = {}
+  }
+
   setOption(name, value) { this._send(`setoption name ${name} value ${value}`) }
   stop() { this._send('stop') }
   kill() { try { this.proc?.kill() } catch {} }
 }
 
-module.exports = { parseInfoLine, Engine }
+module.exports = { parseInfoLine, defaultHashMb, Engine }
 ```
 
 - [ ] **Step 4: Run test, expect pass**
@@ -817,7 +864,7 @@ module.exports = { parseInfoLine, Engine }
 ```powershell
 npm test
 ```
-Expected: parseInfoLine tests pass (6 total with stockfish tests).
+Expected: all engine + stockfish tests pass (parseInfoLine × 3, defaultHashMb × 1, pickWindowsAsset × 3).
 
 - [ ] **Step 5: Commit**
 
@@ -941,6 +988,8 @@ class Bridge {
     if (msg.type === 'evaluate') { this.engine.evaluate(msg.fen, msg.depth, msg.multiPv); return }
     if (msg.type === 'set_option') { this.engine.setOption(msg.name, msg.value); return }
     if (msg.type === 'stop') { this.engine.stop(); return }
+    // New game → reset the transposition table. Normal moves NEVER reset (hash is reused).
+    if (msg.type === 'new_game') { this.engine.newGame(); return }
     // Overlay draw payload (no engine type) — has evalBar/arrows/positionOnly/visible
     if ('evalBar' in msg || 'arrows' in msg || 'positionOnly' in msg || 'visible' in msg) {
       this.overlay.draw(msg)
@@ -1351,9 +1400,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 })
 ```
 
-- [ ] **Step 3: Verify content scripts still send identify**
+- [ ] **Step 3: Verify content scripts send identify; send new_game on new-game detection**
 
-Read `extension/src/content/content.js` and `extension/src/content/lichess.js`. Confirm `_overlayWs.onopen` sends `{ type: 'identify', role: 'extension' }` (added in the previous round). If missing, add it as the first line of the onopen handler. No other content-script changes needed — they already speak the WS eval + overlay-draw protocol that the new Bridge routes.
+Read `extension/src/content/content.js` and `extension/src/content/lichess.js`. Confirm `_overlayWs.onopen` sends `{ type: 'identify', role: 'extension' }` (added in the previous round). If missing, add it as the first line of the onopen handler.
+
+The content scripts already have a `RESET_ENGINE` handler (sends `{type:'stop'}` over WS) and detect new games (the code that clears caches when the board returns to the start position). For the engine's persistent-hash optimization to reset correctly at a new game, make the new-game path also send `{type:'new_game'}` over the WS so the engine clears its transposition table. Find where the content script handles `RESET_ENGINE` (or detects a fresh game / start position) and add, right where it already sends `{type:'stop'}`:
+
+```javascript
+        if (_overlayWs?.readyState === WebSocket.OPEN) {
+          _overlayWs.send(JSON.stringify({ type: 'new_game' }))
+        }
+```
+
+Do this in both `content.js` and `lichess.js`. No other content-script changes needed — they already speak the WS eval + overlay-draw protocol the new Bridge routes. (Normal per-move evals must keep sending only `{type:'evaluate'}` — never `new_game` — so the hash is preserved between moves.)
 
 - [ ] **Step 4: Verify the extension loads**
 

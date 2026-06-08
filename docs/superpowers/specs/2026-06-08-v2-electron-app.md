@@ -125,6 +125,17 @@ batch launchers tied to the C# exe.
 - Broadcasts eval to wsserver (→ extension) and to the main window (→ EvalPanel) via IPC.
 - `set_option` maps skill level / ELO / MultiPV.
 
+**Performance — fast reuse across a game session.** One long-lived Stockfish process per
+session, with the transposition table preserved across moves:
+- On `uciok`, set `Threads` (≈ cores − 1) and `Hash` (RAM-scaled, 128–1024 MB) once. Native
+  Stockfish can use both fully — the core reason for going native over WASM.
+- `evaluate()` **never** sends `ucinewgame` — each new position reuses the hash/search tree from
+  the previous move and from speculative PV pre-warm evals (the extension's `_pvQuickCache` /
+  `_preWarmCache`). This is the main "reuse the same game session" speedup.
+- `newGame()` (sends `ucinewgame`) is called **only** when a genuinely new game starts. The
+  extension signals this with a `{type:'new_game'}` WS message; normal moves send only
+  `{type:'evaluate'}`.
+
 ### electron/stockfish.js
 - Resolves Stockfish path: `userData/stockfish.exe`, else next to app, else PATH.
 - If missing: download latest Windows build from `official-stockfish/Stockfish` GitHub releases
