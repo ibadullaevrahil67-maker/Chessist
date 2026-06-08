@@ -2786,6 +2786,10 @@
   async function init() {
     await loadSettings();
 
+    // The desktop app is the only engine now — always connect so we can request
+    // evals, identify to the app, and receive pushed settings (regardless of mode/enabled).
+    _connectEngineWs();
+
     if (!isEnabled) return;
 
     await restoreAccuracyState();
