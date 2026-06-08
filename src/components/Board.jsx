@@ -1,6 +1,15 @@
 // Renders a chess position from FEN with best-move arrows. White's perspective.
+// Uses image assets from src/assets if present, otherwise falls back to glyphs/CSS squares.
 const GLYPH = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
 const ARROW_COLORS = ['rgb(var(--accent))', 'rgb(var(--status-yellow))', 'rgb(var(--status-red))']
+
+// Piece images keyed by e.g. "wr", "bk" (filename without extension).
+const PIECE_IMGS = Object.fromEntries(
+  Object.entries(import.meta.glob('../assets/pieces/*.png', { eager: true, import: 'default' }))
+    .map(([path, url]) => [path.split('/').pop().replace('.png', '').toLowerCase(), url])
+)
+// First board image found in src/assets/board (e.g. board.png), or null.
+const BOARD_IMG = Object.values(import.meta.glob('../assets/board/*.png', { eager: true, import: 'default' }))[0] || null
 
 function parseFen(fen) {
   const rows = (fen || '').split(' ')[0].split('/')
@@ -46,24 +55,47 @@ function Arrow({ from, to, idx }) {
   )
 }
 
+function Piece({ piece }) {
+  const isWhite = piece === piece.toUpperCase()
+  const key = (isWhite ? 'w' : 'b') + piece.toLowerCase()
+  const img = PIECE_IMGS[key]
+  if (img) {
+    return <img src={img} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+  }
+  // Fallback: unicode glyph
+  return (
+    <span style={{
+      fontSize: 'min(5.2vw, 28px)', lineHeight: 1,
+      color: isWhite ? '#f4f4f6' : '#0e0e12',
+      textShadow: isWhite ? '0 1px 1px rgba(0,0,0,0.5)' : '0 0 1px rgba(255,255,255,0.4)',
+    }}>{GLYPH[piece.toLowerCase()]}</span>
+  )
+}
+
 export default function Board({ fen, arrows = [] }) {
   if (!fen) return null
   const grid = parseFen(fen)
+  const hasBoardImg = !!BOARD_IMG
+
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: 320, margin: '0 auto', aspectRatio: '1 / 1' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gridTemplateRows: 'repeat(8,1fr)', width: '100%', height: '100%', border: '1px solid rgb(var(--border))' }}>
+      {hasBoardImg && (
+        <img src={BOARD_IMG} alt="" draggable={false}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill' }} />
+      )}
+      <div style={{
+        position: 'relative', display: 'grid',
+        gridTemplateColumns: 'repeat(8,1fr)', gridTemplateRows: 'repeat(8,1fr)',
+        width: '100%', height: '100%',
+        border: hasBoardImg ? 'none' : '1px solid rgb(var(--border))',
+      }}>
         {grid.flatMap((row, r) => row.map((piece, f) => {
           const dark = (r + f) % 2 === 1
-          const isWhite = piece && piece === piece.toUpperCase()
+          // Only paint square colors when there's no board image behind.
+          const bg = hasBoardImg ? 'transparent' : (dark ? '#26262e' : '#3a3a44')
           return (
-            <div key={`${r}-${f}`} style={{ background: dark ? '#26262e' : '#3a3a44', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {piece && (
-                <span style={{
-                  fontSize: 'min(5.2vw, 28px)', lineHeight: 1,
-                  color: isWhite ? '#f4f4f6' : '#0e0e12',
-                  textShadow: isWhite ? '0 1px 1px rgba(0,0,0,0.5)' : '0 0 1px rgba(255,255,255,0.4)',
-                }}>{GLYPH[piece.toLowerCase()]}</span>
-              )}
+            <div key={`${r}-${f}`} style={{ background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {piece && <Piece piece={piece} />}
             </div>
           )
         }))}
