@@ -22,6 +22,15 @@ class Bridge {
       })
     })
     this.wss.on('error', (e) => this.onComponent?.({ wsError: e.message }))
+
+    // Heartbeat: ping extension clients every 20s. Incoming WS messages keep the
+    // MV3 service worker alive (idle timeout ~30s), so the presence connection — and
+    // thus extension detection — stays continuous regardless of the active tab.
+    this._ping = setInterval(() => {
+      for (const ws of this.extClients) {
+        if (ws.readyState === 1) { try { ws.send('{"type":"ping"}') } catch {} }
+      }
+    }, 20000)
   }
 
   _onMessage(ws, raw) {
@@ -69,7 +78,7 @@ class Bridge {
     }
   }
 
-  stop() { try { this.wss?.close() } catch {} }
+  stop() { try { clearInterval(this._ping) } catch {} ; try { this.wss?.close() } catch {} }
 }
 
 module.exports = { Bridge, PORT }

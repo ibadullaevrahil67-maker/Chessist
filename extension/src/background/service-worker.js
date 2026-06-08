@@ -1,6 +1,50 @@
 // Chessist - Service Worker (v2)
-// The desktop app owns the engine. This worker only keeps content scripts alive
-// and executes auto-moves via scripting.
+// The desktop app owns the engine. This worker keeps content scripts alive,
+// executes auto-moves, and holds a presence connection to the desktop app so the
+// app detects the extension on ANY page (not just chess.com / lichess.org).
+
+// ── Presence connection to the desktop app ─────────────────────────────────────
+// The content scripts only run on chess sites, so they can't signal presence
+// everywhere. The service worker connects to the app's WebSocket and identifies,
+// so the app shows "extension connected" regardless of which tab is open.
+const APP_WS_URL = 'ws://127.0.0.1:27301'
+let _swWs = null
+let _swReconnect = null
+
+function connectPresence() {
+  // Already connecting/open?
+  if (_swWs && (_swWs.readyState === 0 || _swWs.readyState === 1)) return
+  try {
+    _swWs = new WebSocket(APP_WS_URL)
+    _swWs.onopen = () => {
+      try { _swWs.send(JSON.stringify({ type: 'identify', role: 'extension' })) } catch (e) {}
+    }
+    // Incoming messages (heartbeat pings, eval broadcasts) keep the MV3 worker alive.
+    _swWs.onmessage = () => {}
+    _swWs.onclose = () => { _swWs = null; scheduleReconnect() }
+    _swWs.onerror = () => { try { _swWs.close() } catch (e) {} }
+  } catch (e) {
+    scheduleReconnect()
+  }
+}
+
+function scheduleReconnect() {
+  if (_swReconnect) return
+  _swReconnect = setTimeout(() => { _swReconnect = null; connectPresence() }, 3000)
+}
+
+// Connect on every worker wake-up.
+chrome.runtime.onStartup.addListener(connectPresence)
+chrome.runtime.onInstalled.addListener(connectPresence)
+
+// Backup wake: an alarm revives the worker periodically and reconnects if needed.
+try {
+  chrome.alarms.create('chessist-presence', { periodInMinutes: 0.5 })
+  chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'chessist-presence') connectPresence() })
+} catch (e) {}
+
+// Also connect when this worker script first loads.
+connectPresence()
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'content-alive') return
