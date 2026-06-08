@@ -1,11 +1,13 @@
+import logo from '../assets/logo.png'
+
 export default function TitleBar() {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', height: 36,
-      WebkitAppRegion: 'drag', padding: '0 8px 0 14px',
+      WebkitAppRegion: 'drag', padding: '0 8px 0 12px',
       borderBottom: '1px solid rgb(var(--border))',
     }}>
-      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgb(var(--accent))', boxShadow: '0 0 8px rgba(var(--accent),0.6)' }} />
+      <img src={logo} alt="" width={18} height={18} style={{ display: 'block', borderRadius: 3 }} />
       <span style={{ marginLeft: 8, fontWeight: 700, fontSize: 12, letterSpacing: '0.08em' }}>CHESSIST</span>
       <div style={{ marginLeft: 'auto', display: 'flex', WebkitAppRegion: 'no-drag' }}>
         <button onClick={() => window.chessist.minimizeWindow()} style={btn}>—</button>

@@ -28,15 +28,22 @@ const componentStatus = {
   message: '',
 }
 
+function sendToRenderer(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload)
+  }
+}
+
 function pushStatus(patch) {
   Object.assign(componentStatus, patch)
-  mainWindow?.webContents.send('status', componentStatus)
+  sendToRenderer('status', componentStatus)
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900, height: 600, minWidth: 720, minHeight: 480,
     title: 'Chessist', backgroundColor: '#000000',
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
     frame: false, titleBarStyle: 'hidden', autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -50,12 +57,13 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
   mainWindow.webContents.on('did-finish-load', () => pushStatus({}))
+  mainWindow.on('closed', () => { mainWindow = null })
 }
 
 async function startSubsystems() {
   overlay = new Overlay(isDev, process.resourcesPath, (s) => pushStatus(s))
   engine = new Engine(
-    (ev) => { bridge?.broadcastEval(ev); mainWindow?.webContents.send('eval', ev) },
+    (ev) => { bridge?.broadcastEval(ev); sendToRenderer('eval', ev) },
     (s) => {
       if (s.status === 'ready') pushStatus({ stockfishOk: true, message: '' })
       else if (s.status === 'error') pushStatus({ stockfishOk: false, message: s.message })

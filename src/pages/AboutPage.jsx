@@ -1,3 +1,5 @@
+import logo from '../assets/logo.png'
+
 const VERSION = '2.0.0'
 
 function Link({ href, children }) {
@@ -14,9 +16,12 @@ function Link({ href, children }) {
 export default function AboutPage() {
   return (
     <div style={{ padding: 24, fontSize: 13, lineHeight: 1.9 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
-        <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '0.08em' }}>CHESSIST</span>
-        <span style={{ fontFamily: 'monospace', color: 'rgb(var(--fg-muted))' }}>v{VERSION}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <img src={logo} alt="" width={40} height={40} style={{ display: 'block', borderRadius: 8 }} />
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '0.08em' }}>CHESSIST</span>
+          <span style={{ fontFamily: 'monospace', color: 'rgb(var(--fg-muted))' }}>v{VERSION}</span>
+        </div>
       </div>
       <p style={{ color: 'rgb(var(--fg-muted))', marginBottom: 16 }}>
         Live Stockfish evaluation for Chess.com and Lichess — a desktop app with a transparent,

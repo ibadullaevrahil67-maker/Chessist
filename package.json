@@ -34,7 +34,7 @@
     "extraResources": [
       { "from": "overlay/bin/Release/net48/ChessistOverlay.exe", "to": "overlay/ChessistOverlay.exe" }
     ],
-    "win": { "target": "nsis" },
-    "directories": { "output": "release" }
+    "win": { "target": "nsis", "icon": "build/icon.png" },
+    "directories": { "output": "release", "buildResources": "build" }
   }
 }
