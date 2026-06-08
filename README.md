@@ -30,12 +30,23 @@ Windows 10/11. The transparent overlay is Windows-only.
 
 ## Install
 
-1. Download and run the latest **Chessist installer** from the
-   [Releases](https://github.com/imluri/Chessist/releases) page.
-2. Open the Chessist app — it downloads Stockfish on first run (watch the **Setup** tab).
-3. On the **Setup** tab, follow the **Browser extension** card: it reveals the bundled extension
+> Prebuilt installers will land on the [Releases](https://github.com/imluri/Chessist/releases) page.
+> Until then, build it from source in one click.
+
+**Requirements:** [Node 20+](https://nodejs.org/) and the
+[.NET SDK 8](https://dotnet.microsoft.com/download) (used to build the overlay).
+
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/imluri/Chessist.git
+   ```
+2. Double-click **`install.bat`** — it checks Node/.NET, installs dependencies, builds the overlay +
+   app, and adds a **Chessist** shortcut to your Desktop.
+3. Launch Chessist from the Desktop shortcut. It downloads Stockfish on first run — watch the
+   **Setup** tab.
+4. On the **Setup** tab, follow the **Browser extension** card: it reveals the bundled extension
    folder and walks you through `chrome://extensions` → Developer mode → **Load unpacked**.
-4. Open a game on chess.com or lichess.org. The board and evaluation appear in the app; choose your
+5. Open a game on chess.com or lichess.org. The board and evaluation appear in the app; choose your
    render mode and tweak settings via the **gear** (Settings → Game / Engine).
 
 ## Using the app

@@ -9,6 +9,7 @@
     "electron": "electron .",
     "build": "vite build",
     "dist": "vite build && electron-builder",
+    "pack": "vite build && electron-builder --dir",
     "build:overlay": "powershell -ExecutionPolicy Bypass -File scripts/build-overlay.ps1",
     "test": "vitest run"
   },
