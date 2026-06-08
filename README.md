@@ -41,9 +41,9 @@ Windows 10/11. The transparent overlay is Windows-only.
    git clone https://github.com/imluri/Chessist.git
    ```
 2. Double-click **`install.bat`** — it checks Node/.NET, installs dependencies, builds the overlay +
-   app, and adds a **Chessist** shortcut to your Desktop.
-3. Launch Chessist from the Desktop shortcut (keep the cloned folder where it is — the app runs
-   from it). It downloads Stockfish on first run — watch the **Setup** tab.
+   app, and creates a **Chessist** shortcut (with the app icon) in the project folder.
+3. Launch Chessist from that shortcut (keep the cloned folder where it is — the app runs from it).
+   It downloads Stockfish on first run — watch the **Setup** tab.
 4. On the **Setup** tab, follow the **Browser extension** card: it reveals the bundled extension
    folder and walks you through `chrome://extensions` → Developer mode → **Load unpacked**.
 5. Open a game on chess.com or lichess.org. The board and evaluation appear in the app; choose your

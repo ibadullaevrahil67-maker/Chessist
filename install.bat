@@ -49,7 +49,7 @@ call npm run build
 if errorlevel 1 ( echo  ERROR: app build failed. & pause & exit /b 1 )
 
 echo.
-echo  [4/4] Creating a Desktop shortcut...
+echo  [4/4] Creating the Chessist shortcut...
 set "ELECTRON=%ROOT%\node_modules\electron\dist\electron.exe"
 if not exist "%ELECTRON%" (
     echo  Electron runtime not found at:
@@ -60,16 +60,16 @@ if not exist "%ELECTRON%" (
 powershell -NoProfile -Command ^
     "$root='%ROOT%';" ^
     "$el=Join-Path $root 'node_modules\electron\dist\electron.exe';" ^
-    "$d=[Environment]::GetFolderPath('Desktop');" ^
+    "$ico=Join-Path $root 'build\icon.ico';" ^
     "$w=New-Object -ComObject WScript.Shell;" ^
-    "$s=$w.CreateShortcut((Join-Path $d 'Chessist.lnk'));" ^
+    "$s=$w.CreateShortcut((Join-Path $root 'Chessist.lnk'));" ^
     "$q=[char]34;" ^
     "$s.TargetPath=$el;" ^
     "$s.Arguments=$q+$root+$q+' --prod';" ^
     "$s.WorkingDirectory=$root;" ^
-    "$s.IconLocation=$el;" ^
+    "$s.IconLocation= if (Test-Path $ico) { $ico } else { $el };" ^
     "$s.Save()"
-if errorlevel 1 ( echo  Could not create the shortcut. ) else ( echo  Shortcut "Chessist" added to your Desktop. )
+if errorlevel 1 ( echo  Could not create the shortcut. ) else ( echo  "Chessist" shortcut created in this folder. )
 
 :done
 echo.
@@ -77,7 +77,7 @@ echo  ============================================
 echo    Done.
 echo  ============================================
 echo.
-echo  1. Launch Chessist from the Desktop shortcut.
+echo  1. Launch Chessist from the "Chessist" shortcut in this folder.
 echo     (Keep this folder where it is - the app runs from here.)
 echo  2. In the app, open the Setup tab and follow the
 echo     "Browser extension" card to load the extension.
