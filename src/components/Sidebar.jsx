@@ -25,6 +25,7 @@ export default function Sidebar({ page, setPage, status }) {
             <button
               key={id}
               onClick={() => setPage(id)}
+              className={active ? 'nav-item active' : 'nav-item'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                 padding: '9px 16px', background: active ? 'rgb(var(--surface))' : 'transparent',
