@@ -34,15 +34,17 @@ export default function App() {
       <TitleBar onSettings={() => setSettingsOpen(true)} />
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar page={page} setPage={setPage} status={status} onSettings={() => setSettingsOpen(true)} />
-        <main style={{ flex: 1, overflowY: 'auto' }}>
+        <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {status.message && page !== 'setup' && (
-            <div style={{ padding: '6px 16px', fontSize: 11, color: 'rgb(var(--fg-muted))', fontFamily: 'monospace', borderBottom: '1px solid rgb(var(--border))' }}>
+            <div style={{ flexShrink: 0, padding: '6px 16px', fontSize: 11, color: 'rgb(var(--fg-muted))', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid rgb(var(--border))' }}>
               {status.message}
             </div>
           )}
-          {page === 'evaluation' && <EvaluationPage ev={ev} pos={pos} status={status} />}
-          {page === 'setup' && <SetupPage status={status} />}
-          {page === 'about' && <AboutPage />}
+          <div style={{ flex: 1, minHeight: 0, overflowY: page === 'evaluation' ? 'hidden' : 'auto' }}>
+            {page === 'evaluation' && <EvaluationPage ev={ev} pos={pos} status={status} />}
+            {page === 'setup' && <SetupPage status={status} />}
+            {page === 'about' && <AboutPage />}
+          </div>
         </main>
       </div>
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}

@@ -74,14 +74,19 @@ function Piece({ piece }) {
   )
 }
 
-export default function Board({ fen, arrows = [], flipped = false, maxWidth = 360 }) {
+export default function Board({ fen, arrows = [], flipped = false, maxWidth = 360, fill = false }) {
   if (!fen) return null
   let grid = parseFen(fen)
   if (flipped) grid = grid.map(row => [...row].reverse()).reverse() // black's perspective
   const hasBoardImg = !!BOARD_IMG
 
+  // fill: occupy the parent (which enforces the square). Otherwise center with a max width.
+  const outer = fill
+    ? { position: 'relative', width: '100%', height: '100%' }
+    : { position: 'relative', width: '100%', maxWidth, margin: '0 auto', aspectRatio: '1 / 1' }
+
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth, margin: '0 auto', aspectRatio: '1 / 1' }}>
+    <div style={outer}>
       {hasBoardImg && (
         <img src={BOARD_IMG} alt="" draggable={false}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill' }} />
