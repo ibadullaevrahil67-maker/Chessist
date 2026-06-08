@@ -24,8 +24,20 @@ const gameSettings = {
   instantMove: false,
   autoMoveDelayMin: 0.1,
   autoMoveDelayMax: 0.3,
-  renderMode: 'overlay',   // 'overlay' | 'browser'
+  renderMode: 'overlay',   // 'overlay' | 'browser' | 'electron'
   playerColor: 'auto',     // 'auto' | 'white' | 'black'
+  // ── niche / advanced ──
+  showMoveIcon: false,     // move-classification icons on the board
+  smartTiming: true,       // human-like auto-move timing
+  autoRematch: false,
+  autoNewGame: false,
+  stealthMode: true,       // suppress console logs
+  wlBalance: false,        // win/loss balancing
+  maxConsecutiveWins: 2,
+  maxConsecutiveLosses: 3,
+  throwRandom: false,      // randomly throw games
+  lossRandom: false,
+  targetAccuracy: 100,     // target move accuracy %
 }
 
 function settingsPath() { return path.join(app.getPath('userData'), 'chessist-settings.json') }
