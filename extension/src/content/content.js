@@ -2732,9 +2732,21 @@
           currentTurn = fenParts[1];
         }
 
-        // Re-detect player color (unless we just set it from new game detection above)
+        // Re-detect player color (unless we just set it from new game detection above).
+        // IMPORTANT: never clobber a known color with null. detectPlayerColor() can
+        // return null mid-game (heuristics miss), and a null playerColor stops auto-move
+        // (isPlayerTurn requires playerColor) — the "plays once then freezes" bug. Fall back
+        // to board orientation, otherwise keep the color we already had.
         if (!isNewGame) {
-          playerColor = detectPlayerColor();
+          const detected = detectPlayerColor();
+          if (detected) {
+            playerColor = detected;
+          } else if (!playerColor) {
+            const isFlipped = board.classList?.contains('flipped') ||
+                              board.getAttribute('data-flipped') === 'true' ||
+                              board.hasAttribute('flipped') || board.flipped === true;
+            playerColor = isFlipped ? 'b' : 'w';
+          }
         }
         log('Chessist: Turn:', currentTurn, 'Player:', playerColor || 'spectating');
 

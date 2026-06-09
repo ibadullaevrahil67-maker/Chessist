@@ -1740,7 +1740,17 @@
         const fenParts = fenForEval.split(' ');
         if (fenParts.length > 1) currentTurn = fenParts[1];
 
-        if (!isNewGame) playerColor = detectPlayerColor();
+        // Never clobber a known color with null — detectPlayerColor() can fail mid-game,
+        // and a null playerColor stops auto-move (the "plays once then freezes" bug).
+        if (!isNewGame) {
+          const detected = detectPlayerColor();
+          if (detected) {
+            playerColor = detected;
+          } else if (!playerColor) {
+            const cg = document.querySelector('cg-wrap') || document.querySelector('.cg-wrap');
+            playerColor = (cg && cg.classList.contains('orientation-black')) ? 'b' : 'w';
+          }
+        }
         log('Chessist: Turn:', currentTurn, 'Player:', playerColor || 'spectating');
 
         if (turnIndicatorEl) {
