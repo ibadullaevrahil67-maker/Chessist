@@ -1,6 +1,16 @@
-function fmt(ev) {
-  if (ev.mate !== undefined) return `M${ev.mate}`
-  if (ev.cp !== undefined) { const p = ev.cp / 100; return (p >= 0 ? '+' : '') + p.toFixed(2) }
+// Stockfish reports scores from the side-to-move's perspective. Convert to
+// White's perspective (positive = good for White) so the bar doesn't flip each move.
+function whiteRelative(ev) {
+  const sign = ev.turn === 'b' ? -1 : 1
+  return {
+    cp: ev.cp !== undefined ? ev.cp * sign : undefined,
+    mate: ev.mate !== undefined ? ev.mate * sign : undefined,
+  }
+}
+
+function fmt(cp, mate) {
+  if (mate !== undefined) return `M${mate}`
+  if (cp !== undefined) { const p = cp / 100; return (p >= 0 ? '+' : '') + p.toFixed(2) }
   return '—'
 }
 
@@ -14,9 +24,10 @@ function Stat({ label, value }) {
 }
 
 export default function EvalPanel({ ev }) {
+  const { cp, mate } = whiteRelative(ev)
   let fill = 50
-  if (ev.mate !== undefined) fill = ev.mate > 0 ? 95 : 5
-  else if (ev.cp !== undefined) fill = 50 + Math.max(-45, Math.min(45, ev.cp / 50))
+  if (mate !== undefined) fill = mate > 0 ? 95 : 5
+  else if (cp !== undefined) fill = 50 + Math.max(-45, Math.min(45, cp / 50))
 
   return (
     <div>
@@ -30,7 +41,7 @@ export default function EvalPanel({ ev }) {
 
       {/* score */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '12px 2px 12px' }}>
-        <span style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(ev)}</span>
+        <span style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(cp, mate)}</span>
         <span style={{ fontSize: 12, color: 'rgb(var(--fg-muted))', fontVariantNumeric: 'tabular-nums' }}>depth {ev.depth}</span>
       </div>
 
