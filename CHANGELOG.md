@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.1] — 2026-06-09
+
+### Added
+- **In-app auto-updater** — checks GitHub for new versions on launch and from About → Updates; one
+  click runs `git pull`/checkout → reinstall → rebuild → relaunch
+- **Beta channel** — toggle in About: on = update on every commit to `main`; off (default) = released
+  tags only
+
+### Fixed
+- **Eval bar no longer flips each move** — scores are normalized to White's perspective (Stockfish
+  reports relative to the side to move)
+- **Crash on engine death** — guarded Stockfish stdin writes (no more `write EPIPE` taking down the
+  app) with a bounded auto-restart
+
 ## [2.0.0] — 2026-06-08
 
 ### Changed
