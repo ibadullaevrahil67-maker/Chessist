@@ -184,13 +184,26 @@ function extensionDir() {
     : path.join(process.resourcesPath, 'extension')
 }
 
-app.whenReady().then(() => {
-  Menu.setApplicationMenu(null)
-  registerIpc()
-  createWindow()
-  startSubsystems()
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
-})
+// Single instance: a second launch must not race for port 27301. If we can't get
+// the lock, focus the existing window and quit this one.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show(); mainWindow.focus()
+    }
+  })
+
+  app.whenReady().then(() => {
+    Menu.setApplicationMenu(null)
+    registerIpc()
+    createWindow()
+    startSubsystems()
+    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+  })
+}
 
 app.on('before-quit', () => { engine?.kill(); overlay?.kill(); bridge?.stop() })
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })

@@ -1,4 +1,5 @@
 const { WebSocketServer } = require('ws')
+const { createServer } = require('http')
 
 const PORT = 27301
 
@@ -26,7 +27,11 @@ class Bridge {
   }
 
   start() {
-    this.wss = new WebSocketServer({ host: '127.0.0.1', port: PORT })
+    // Listen on BOTH loopback families (IPv4 127.0.0.1 AND IPv6 ::1). Some setups
+    // resolve "localhost"/loopback to IPv6 first, so binding only 127.0.0.1 left the
+    // extension's WebSocket refused (net::ERR_CONNECTION_REFUSED) even though netstat
+    // showed the app listening. A shared noServer wss handles upgrades from either.
+    this.wss = new WebSocketServer({ noServer: true })
     this.wss.on('connection', (ws) => {
       ws.on('message', (raw) => this._onMessage(ws, raw))
       ws.on('close', () => {
@@ -35,7 +40,22 @@ class Bridge {
         if (a || b) this._emit()
       })
     })
-    this.wss.on('error', (e) => this.onComponent?.({ wsError: e.message }))
+    const onUpgrade = (req, socket, head) => {
+      this.wss.handleUpgrade(req, socket, head, (ws) => this.wss.emit('connection', ws, req))
+    }
+    this._servers = []
+    let listening = 0
+    for (const host of ['127.0.0.1', '::1']) {
+      const srv = createServer()
+      srv.on('upgrade', onUpgrade)
+      srv.on('error', (e) => {
+        // EADDRINUSE on one family is fine as long as the other bound.
+        if (e.code !== 'EADDRINUSE' && e.code !== 'EADDRNOTAVAIL') this.onComponent?.({ wsError: e.message })
+      })
+      srv.on('listening', () => { listening++ })
+      try { srv.listen(PORT, host) } catch {}
+      this._servers.push(srv)
+    }
 
     // Heartbeat: ping every 20s. Incoming WS messages keep the MV3 service worker
     // alive (idle ~30s), so presence detection stays continuous regardless of tab.
@@ -100,7 +120,11 @@ class Bridge {
     }
   }
 
-  stop() { try { clearInterval(this._ping) } catch {} ; try { this.wss?.close() } catch {} }
+  stop() {
+    try { clearInterval(this._ping) } catch {}
+    try { this.wss?.close() } catch {}
+    for (const s of this._servers || []) { try { s.close() } catch {} }
+  }
 }
 
 module.exports = { Bridge, PORT }
