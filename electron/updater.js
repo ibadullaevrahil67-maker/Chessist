@@ -44,17 +44,18 @@ async function checkForUpdate(beta = false) {
   const fetch = await run('git', ['fetch', '--quiet', '--tags', 'origin', 'main'])
   if (fetch.code !== 0) return { error: 'Could not reach GitHub: ' + fetch.out.trim() }
   const head = (await run('git', ['rev-parse', 'HEAD'])).out.trim()
+  const headShort = (await run('git', ['rev-parse', '--short', 'HEAD'])).out.trim() || head.slice(0, 7)
 
   if (beta) {
     const remote = (await run('git', ['rev-parse', 'origin/main'])).out.trim()
     const behind = parseInt(((await run('git', ['rev-list', '--count', 'HEAD..origin/main'])).out || '').trim() || '0', 10)
-    return { channel: 'beta', available: !!remote && remote !== head, behind }
+    return { channel: 'beta', available: !!remote && remote !== head, behind, head: headShort }
   }
 
   const tag = await latestTag()
-  if (!tag) return { channel: 'stable', available: false, noReleases: true }
+  if (!tag) return { channel: 'stable', available: false, noReleases: true, head: headShort }
   const tagSha = (await run('git', ['rev-list', '-n', '1', tag])).out.trim()
-  return { channel: 'stable', available: !!tagSha && tagSha !== head, tag }
+  return { channel: 'stable', available: !!tagSha && tagSha !== head, tag, head: headShort }
 }
 
 // Checks out the channel target, reinstalls, rebuilds. Returns { ok } | { ok:false, step, code }.

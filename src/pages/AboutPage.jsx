@@ -58,9 +58,19 @@ function Updates({ status, onChange }) {
     else { line = 'You are on the latest version.'; color = 'rgb(var(--status-green))' }
   }
 
+  const channelName = beta ? 'beta' : 'stable'
+
   return (
     <div className="scard" style={{ padding: 14, marginTop: 8 }}>
       <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', color: 'rgb(var(--fg-muted))', marginBottom: 8 }}>UPDATES</div>
+
+      {/* Always show what you're on. */}
+      <div style={{ fontSize: 12, color: 'rgb(var(--fg-muted))', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+        Installed: <span style={{ color: 'rgb(var(--fg))' }}>v{VERSION}</span>
+        {status?.head && <span> · <span style={{ fontFamily: 'monospace' }}>{status.head}</span></span>}
+        {' '}· <span>{channelName} channel</span>
+      </div>
+
       <div style={{ fontSize: 12, color, marginBottom: 12 }}>{applying ? 'Updating…' : line}</div>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, cursor: 'pointer' }}>
