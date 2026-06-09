@@ -3,6 +3,9 @@ import logo from '../assets/logo.png'
 import Check from '../components/controls/Check'
 
 const VERSION = '2.0.2'
+// Baked at build time when git is available (see vite.config.js). Empty for source-ZIP builds.
+const BUILD_SHA = (typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : '')
+const RELEASES_URL = 'https://github.com/imluri/Chessist/releases'
 
 function Link({ href, children }) {
   return (
@@ -49,16 +52,30 @@ function Updates({ status, onChange }) {
 
   let line = 'Checking…'
   let color = 'rgb(var(--fg-muted))'
+  let manualUpdate = false   // non-git install with an update → link to Releases instead of auto-applying
   if (status) {
-    if (status.unsupported) { line = 'Updates apply to git installs only.'; color = 'rgb(var(--fg-dim))' }
-    else if (status.error) { line = status.error; color = 'rgb(var(--status-red))' }
-    else if (status.noReleases) { line = 'Stable channel — no releases published yet.'; color = 'rgb(var(--fg-dim))' }
+    if (status.error) { line = status.error; color = 'rgb(var(--status-red))' }
+    else if (status.unsupported) { line = 'Updates apply to git installs only.'; color = 'rgb(var(--fg-dim))' }
+    else if (status.noReleases) { line = 'No stable release published yet.'; color = 'rgb(var(--fg-dim))' }
+    else if (status.manual) {
+      // Checked over HTTP (no local git): we can detect a newer version but not auto-apply.
+      let avail = status.available
+      if (status.channel === 'beta') avail = !!BUILD_SHA && !!status.latestSha && BUILD_SHA !== status.latestSha
+      if (avail) {
+        manualUpdate = true
+        line = status.channel === 'beta'
+          ? 'New commit available on main — download the latest build.'
+          : `Update available — ${status.tag}. Download the latest build.`
+        color = 'rgb(var(--status-yellow))'
+      } else { line = 'You are on the latest version.'; color = 'rgb(var(--status-green))' }
+    }
     else if (status.available && status.channel === 'beta') { line = `Update available — ${status.behind} commit${status.behind === 1 ? '' : 's'} behind.`; color = 'rgb(var(--status-yellow))' }
     else if (status.available) { line = `Update available — ${status.tag}.`; color = 'rgb(var(--status-yellow))' }
     else { line = 'You are on the latest version.'; color = 'rgb(var(--status-green))' }
   }
 
   const channelName = beta ? 'beta' : 'stable'
+  const head = status?.head || BUILD_SHA
 
   return (
     <div className="scard" style={{ padding: 14, marginTop: 8 }}>
@@ -67,7 +84,7 @@ function Updates({ status, onChange }) {
       {/* Always show what you're on. */}
       <div style={{ fontSize: 12, color: 'rgb(var(--fg-muted))', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
         Installed: <span style={{ color: 'rgb(var(--fg))' }}>v{VERSION}</span>
-        {status?.head && <span> · <span style={{ fontFamily: 'monospace' }}>{status.head}</span></span>}
+        {head && <span> · <span style={{ fontFamily: 'monospace' }}>{head}</span></span>}
         {' '}· <span>{channelName} channel</span>
       </div>
 
@@ -82,7 +99,10 @@ function Updates({ status, onChange }) {
       </label>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {status?.available && !applying && (
+        {manualUpdate && (
+          <button style={btn} onClick={() => window.chessist.openExternal(RELEASES_URL)}>Download update</button>
+        )}
+        {!status?.manual && status?.available && !applying && (
           <button style={btn} onClick={apply}>Update &amp; restart</button>
         )}
         <button style={btnGhost} disabled={busy || applying} onClick={check}>
