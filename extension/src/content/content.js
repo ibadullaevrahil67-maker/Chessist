@@ -53,7 +53,7 @@
   const ACCURACY_EVAL_DEPTH = 10;   // Minimum depth for accuracy calculation
 
   let overlayMode = false; // Send eval data to native overlay window
-  let suppressInPage = false; // 'electron' render mode: app draws, extension draws nothing
+  let suppressInPage = true; // default: the desktop app owns the UI, so the extension draws nothing on the page (no in-page eval bar / arrows). The app can opt back into in-page drawing via a pushed render mode.
   let manualMap = false;
   let manualOffsetX = 0;
   let manualOffsetY = 0;
@@ -1740,10 +1740,34 @@
   let _observedBoard = null;
   let _lastEvaluation = null; // cached for immediate redraw on WS reconnect
 
+  // A WebSocket-shaped object that tunnels frames through the service worker,
+  // which owns the only real socket to the desktop app. Content scripts can't
+  // open a loopback WebSocket from a public page (Chrome blocks page-context
+  // connections to 127.0.0.1), but the extension context can — so we proxy.
+  // readyState mirrors WebSocket: 0 CONNECTING, 1 OPEN, 3 CLOSED.
+  function _engineSocket() {
+    const port = chrome.runtime.connect({ name: 'engine' });
+    const shim = {
+      readyState: 0,
+      onopen: null, onmessage: null, onclose: null, onerror: null,
+      send(data) { try { port.postMessage({ kind: 'frame', data }); } catch (e) {} },
+      close() { try { port.disconnect(); } catch (e) {} _fail(); },
+    };
+    function _fail() { if (shim.readyState !== 3) { shim.readyState = 3; try { shim.onclose && shim.onclose(); } catch (e) {} } }
+    port.onMessage.addListener((m) => {
+      if (!m) return;
+      if (m.kind === 'open') { shim.readyState = 1; try { shim.onopen && shim.onopen(); } catch (e) {} }
+      else if (m.kind === 'frame') { try { shim.onmessage && shim.onmessage({ data: m.data }); } catch (e) {} }
+      else if (m.kind === 'closed') { _fail(); }
+    });
+    port.onDisconnect.addListener(_fail);
+    return shim;
+  }
+
   function _connectEngineWs() {
     if (_overlayWs && _overlayWs.readyState <= WebSocket.OPEN) return;
     try {
-      _overlayWs = new WebSocket('ws://127.0.0.1:27301');
+      _overlayWs = _engineSocket();
       _overlayWs.onopen  = () => {
         try { _overlayWs.send(JSON.stringify({ type: 'identify', role: 'content', site: 'Chess.com' })); } catch (e) {}
         _launchTriggered = false;

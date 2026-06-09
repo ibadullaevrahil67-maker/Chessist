@@ -51,6 +51,35 @@ chrome.runtime.onConnect.addListener((port) => {
   // keep-alive only
 })
 
+// ── Engine relay ───────────────────────────────────────────────────────────────
+// Content scripts can't open a loopback WebSocket from a public HTTPS page —
+// Chrome blocks page-context connections to 127.0.0.1 (Private/Local Network
+// Access + page CSP). The service worker runs in the extension context, which is
+// exempt, so each content script opens a runtime port here and we own the real
+// socket to the desktop app, relaying frames 1:1. From the app's point of view
+// this is just a normal "content" connection, so the desktop side is unchanged.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'engine') return
+
+  let sock
+  try { sock = new WebSocket(APP_WS_URL) }
+  catch (e) { try { port.postMessage({ kind: 'closed' }) } catch (_) {} ; return }
+
+  sock.onopen = () => { try { port.postMessage({ kind: 'open' }) } catch (e) {} }
+  sock.onmessage = (e) => { try { port.postMessage({ kind: 'frame', data: e.data }) } catch (err) {} }
+  sock.onclose = () => { try { port.postMessage({ kind: 'closed' }) } catch (e) {} }
+  sock.onerror = () => { try { sock.close() } catch (e) {} }
+
+  port.onMessage.addListener((m) => {
+    if (m && m.kind === 'frame' && sock && sock.readyState === 1) {
+      try { sock.send(m.data) } catch (e) {}
+    }
+  })
+  port.onDisconnect.addListener(() => {
+    try { if (sock && sock.readyState <= 1) sock.close() } catch (e) {}
+  })
+})
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'EXECUTE_MOVE') {
     const tabId = sender.tab?.id
