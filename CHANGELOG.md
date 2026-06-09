@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.2] — 2026-06-09
+
+### Fixed
+- **Connection refused (`net::ERR_CONNECTION_REFUSED`)** — the WebSocket server now binds both the
+  IPv4 (`127.0.0.1`) and IPv6 (`::1`) loopback, so the extension connects regardless of how the OS
+  resolves localhost
+- **Auto-move freezing after one move** — player color is no longer clobbered to `null` mid-game, so
+  auto-move keeps playing each turn
+- **Single instance** — a second launch focuses the existing window instead of racing for the port
+
+### Added
+- Update check shows the installed version, commit hash, and channel (stable/beta)
+
 ## [2.0.1] — 2026-06-09
 
 ### Added

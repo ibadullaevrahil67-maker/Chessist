@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import logo from '../assets/logo.png'
 import Check from '../components/controls/Check'
 
-const VERSION = '2.0.1'
+const VERSION = '2.0.2'
 
 function Link({ href, children }) {
   return (
