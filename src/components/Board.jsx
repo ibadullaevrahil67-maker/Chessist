@@ -74,7 +74,7 @@ function Piece({ piece }) {
   )
 }
 
-export default function Board({ fen, arrows = [], flipped = false, maxWidth = 360, fill = false }) {
+export default function Board({ fen, arrows = [], flipped = false, maxWidth = 360, fill = false, kingMark = null }) {
   if (!fen) return null
   let grid = parseFen(fen)
   if (flipped) grid = grid.map(row => [...row].reverse()).reverse() // black's perspective
@@ -109,6 +109,15 @@ export default function Board({ fen, arrows = [], flipped = false, maxWidth = 36
         }))}
       </div>
       <svg viewBox="0 0 8 8" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+        {kingMark?.square && (() => {
+          const c = center(kingMark.square, flipped)
+          return (
+            <g>
+              <rect x={c.x - 0.5} y={c.y - 0.5} width={1} height={1} fill={kingMark.color} opacity={0.28} />
+              <circle cx={c.x} cy={c.y} r={0.45} fill="none" stroke={kingMark.color} strokeWidth={0.1} opacity={0.95} />
+            </g>
+          )
+        })()}
         {arrows.map((a, i) => <Arrow key={i} from={a.from} to={a.to} idx={a.idx ?? i} flipped={flipped} />)}
       </svg>
     </div>

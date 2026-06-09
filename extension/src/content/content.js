@@ -2476,6 +2476,15 @@
       if (evalPosition !== currentPosition) return;
     }
 
+    // Engine reports the side to move has no legal reply → game over. Clear the
+    // best-move arrow, never attempt an auto-move, and nudge the rematch flow.
+    if (evaluation.gameOver) {
+      clearArrow();
+      chrome.runtime.sendMessage({ type: 'WS_EVAL_UPDATE', evaluation }).catch(() => {});
+      if (autoRematch || autoNewGame) checkAutoRematch();
+      return;
+    }
+
     // Calculate move accuracy from ongoing eval on opponent's turn
     if (accuracyEvalPending) {
       const ev = evaluation;

@@ -103,6 +103,7 @@ class Engine {
     }
     if (line.startsWith('info depth')) {
       const ev = parseInfoLine(line)
+      if (ev) this._lastInfo = ev   // keep the latest, incl. depth-0 lines (checkmate reports mate 0)
       if (!ev || (ev.depth || 0) < 5) return
       const slot = ev.multipv || 1
       this.pvSlots[slot] = ev
@@ -111,6 +112,23 @@ class Engine {
       ev.turn = this.curFen ? (this.curFen.split(' ')[1] || 'w') : 'w'
       ev.multiPvMoves = [1, 2, 3].map(i => this.pvSlots[i]?.pv?.[0]).filter(Boolean)
       this.onEval?.(ev)
+      return
+    }
+    // Stockfish answers a finished position with no legal move. `score mate 0`
+    // (side to move is in check) → checkmate; otherwise → stalemate/draw.
+    if (line.startsWith('bestmove')) {
+      const move = line.split(/\s+/)[1]
+      if (move === '(none)' || move === '0000') {
+        const turn = this.curFen ? (this.curFen.split(' ')[1] || 'w') : 'w'
+        const mated = this._lastInfo && this._lastInfo.mate === 0
+        this.onEval?.({
+          fen: this.curFen,
+          turn,
+          gameOver: mated ? 'checkmate' : 'stalemate',
+          // For checkmate, the side to move is mated → the other side wins.
+          winner: mated ? (turn === 'w' ? 'b' : 'w') : null,
+        })
+      }
     }
   }
 
@@ -120,6 +138,7 @@ class Engine {
     if (multipv && multipv !== this.multipv) { this.multipv = multipv; this._send(`setoption name MultiPV value ${multipv}`) }
     this.curFen = fen
     this.pvSlots = {}
+    this._lastInfo = null
     this._send('stop')
     this._send('position fen ' + fen)
     this._send('go depth ' + this.depth)

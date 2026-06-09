@@ -1445,6 +1445,14 @@
       const currentPosition = currentFen.split(' ').slice(0, 2).join(' ');
       if (evalPosition !== currentPosition) return;
     }
+    // Engine reports no legal reply for the side to move → game over. Clear the
+    // arrow, skip auto-move, and nudge the rematch flow.
+    if (evaluation.gameOver) {
+      clearArrow();
+      chrome.runtime.sendMessage({ type: 'WS_EVAL_UPDATE', evaluation }).catch(() => {});
+      if (autoRematch || autoNewGame) checkAutoRematch();
+      return;
+    }
     if (accuracyEvalPending) {
       const ev = evaluation;
       if (ev.depth >= ACCURACY_EVAL_DEPTH) {

@@ -24,6 +24,25 @@ function Stat({ label, value }) {
 }
 
 export default function EvalPanel({ ev }) {
+  // Game over: the engine reported no legal move for the side to move.
+  if (ev.gameOver) {
+    const mate = ev.gameOver === 'checkmate'
+    const fill = !mate ? 50 : (ev.winner === 'w' ? 100 : 0)
+    return (
+      <div>
+        <div style={{ height: 6, background: 'rgb(var(--surface))', position: 'relative', overflow: 'hidden', borderRadius: 999 }}>
+          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${fill}%`, background: 'rgb(var(--accent))', transition: 'width 0.25s' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '12px 2px' }}>
+          <span style={{ fontSize: 24, fontWeight: 700 }}>{mate ? 'Checkmate' : 'Stalemate'}</span>
+          <span style={{ fontSize: 13, color: 'rgb(var(--fg-muted))' }}>
+            {mate ? `${ev.winner === 'w' ? 'White' : 'Black'} wins` : 'Draw'}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   const { cp, mate } = whiteRelative(ev)
   let fill = 50
   if (mate !== undefined) fill = mate > 0 ? 95 : 5

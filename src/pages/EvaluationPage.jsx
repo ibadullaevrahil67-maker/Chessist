@@ -4,6 +4,21 @@ import Board from '../components/Board'
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const piecesKey = (fen) => (fen ? fen.split(' ')[0] : '')
 
+// Locate a side's king on the board, e.g. ('…', 'w') → 'e1'. Returns null if absent.
+function kingSquare(fen, color) {
+  const target = color === 'w' ? 'K' : 'k'
+  const rows = (fen || '').split(' ')[0].split('/')
+  for (let r = 0; r < rows.length; r++) {
+    let file = 0
+    for (const ch of rows[r]) {
+      if (/\d/.test(ch)) { file += +ch; continue }
+      if (ch === target) return String.fromCharCode(97 + file) + (8 - r)
+      file++
+    }
+  }
+  return null
+}
+
 function arrowsFromEval(ev) {
   const moves = (ev.multiPvMoves && ev.multiPvMoves.length) ? ev.multiPvMoves : (ev.bestMove ? [ev.bestMove] : [])
   return moves
@@ -21,7 +36,16 @@ export default function EvaluationPage({ ev, pos, status }) {
 
   const evalMatches = ev?.fen && (!pos?.fen || piecesKey(ev.fen) === piecesKey(pos.fen))
   const showEval = chessOn && ev && evalMatches
-  const arrows = showEval ? arrowsFromEval(ev) : []
+  const gameOver = showEval && ev.gameOver ? ev.gameOver : null
+  const arrows = (showEval && !gameOver) ? arrowsFromEval(ev) : []
+
+  // On checkmate the side to move is mated — ring its king in red.
+  const kingMark = gameOver === 'checkmate'
+    ? { square: kingSquare(boardFen, ev.turn), color: 'rgb(var(--status-red))' }
+    : null
+  const overText = gameOver === 'checkmate'
+    ? `Checkmate — ${ev.winner === 'w' ? 'White' : 'Black'} wins`
+    : gameOver === 'stalemate' ? 'Stalemate — Draw' : null
 
   // Three states: live game · extension up but no game · nothing connected.
   // dot/label/hint reflect which.
@@ -58,7 +82,15 @@ export default function EvaluationPage({ ev, pos, status }) {
       {/* board fills the remaining space, kept square and bounded by both axes */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ height: '100%', maxWidth: '100%', aspectRatio: '1 / 1', position: 'relative', opacity: boardOpacity, filter: boardFilter }}>
-          <Board fen={boardFen} arrows={arrows} flipped={flipped} fill />
+          <Board fen={boardFen} arrows={arrows} flipped={flipped} kingMark={kingMark} fill />
+          {overText && (
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 12, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+              <div style={{
+                background: 'rgba(10,10,14,0.86)', color: '#fff', padding: '8px 16px', borderRadius: 'var(--radius)',
+                fontWeight: 700, fontSize: 14, border: '1px solid rgb(var(--border))', boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
+              }}>{overText}</div>
+            </div>
+          )}
         </div>
       </div>
 
