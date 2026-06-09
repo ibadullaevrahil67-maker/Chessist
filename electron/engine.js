@@ -30,6 +30,9 @@ class Engine {
     this.multipv = 1
     this.curFen = null
     this.pvSlots = {}
+    this._path = null         // stockfish path (for auto-restart)
+    this._intentional = false // suppress restart on deliberate kill
+    this._restarts = 0        // bounded auto-restart counter
     this.hashMb = opts.hashMb || defaultHashMb()
     this.threads = opts.threads || Math.max(1, os.cpus().length - 1)
     // Engine settings owned by the desktop app (Engine page). Re-applied on every
@@ -45,10 +48,13 @@ class Engine {
   }
 
   start(stockfishPath) {
-    this.proc = spawn(stockfishPath, [], { windowsHide: true })
-    this.proc.stdout.setEncoding('utf8')
+    if (stockfishPath) this._path = stockfishPath
+    this._intentional = false
+    const proc = spawn(this._path, [], { windowsHide: true })
+    this.proc = proc
+    proc.stdout.setEncoding('utf8')
     let buf = ''
-    this.proc.stdout.on('data', (chunk) => {
+    proc.stdout.on('data', (chunk) => {
       buf += chunk
       let i
       while ((i = buf.indexOf('\n')) >= 0) {
@@ -57,11 +63,30 @@ class Engine {
         this._handle(line)
       }
     })
-    this.proc.on('exit', () => { this.ready = false; this.onStatus?.({ status: 'error', message: 'Stockfish exited' }) })
+    // Swallow stream errors (e.g. EPIPE when Stockfish dies mid-write) so they
+    // never become an uncaught exception that crashes the app.
+    proc.on('error', () => {})
+    proc.stdin.on('error', () => {})
+    proc.stdout.on('error', () => {})
+    proc.on('exit', () => {
+      this.ready = false
+      if (this.proc === proc) this.proc = null
+      if (this._intentional) return
+      this.onStatus?.({ status: 'error', message: 'Stockfish exited' })
+      // Bounded auto-restart so a one-off crash recovers without looping forever.
+      if (this._path && this._restarts < 3) {
+        this._restarts++
+        setTimeout(() => { if (!this.proc) this.start() }, 1200)
+      }
+    })
     this._send('uci')
   }
 
-  _send(cmd) { this.proc?.stdin.write(cmd + '\n') }
+  _send(cmd) {
+    const p = this.proc
+    if (!p || !p.stdin || !p.stdin.writable) return
+    try { p.stdin.write(cmd + '\n') } catch {}
+  }
 
   _handle(line) {
     if (line === 'uciok') {
@@ -72,6 +97,7 @@ class Engine {
     }
     if (line === 'readyok') {
       this.ready = true
+      this._restarts = 0
       this.onStatus?.({ status: 'ready', message: 'Engine ready' })
       return
     }
@@ -139,7 +165,7 @@ class Engine {
   }
 
   stop() { this._send('stop') }
-  kill() { try { this.proc?.kill() } catch {} }
+  kill() { this._intentional = true; try { this.proc?.kill() } catch {} }
 }
 
 module.exports = { parseInfoLine, defaultHashMb, Engine }
