@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
 import logo from '../assets/logo.png'
+import Check from '../components/controls/Check'
 
-const VERSION = '2.0.0'
+const VERSION = '2.0.1'
 
 function Link({ href, children }) {
   return (
@@ -13,25 +15,104 @@ function Link({ href, children }) {
   )
 }
 
-export default function AboutPage() {
+const btn = {
+  padding: '7px 12px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--radius-sm)',
+  background: 'rgb(var(--accent))', color: '#fff', border: 'none', cursor: 'pointer',
+}
+const btnGhost = { ...btn, background: 'rgb(var(--surface))', color: 'rgb(var(--fg))', border: '1px solid rgb(var(--border))' }
+
+function Updates({ status, onChange }) {
+  const [busy, setBusy] = useState(false)   // checking
+  const [applying, setApplying] = useState(false)
+  const [beta, setBetaState] = useState(false)
+  const [log, setLog] = useState('')
+  const logRef = useRef(null)
+
+  useEffect(() => {
+    window.chessist.getBeta?.().then(setBetaState)
+    const off = window.chessist.onUpdateLog((line) => setLog(prev => prev + line))
+    return off
+  }, [])
+  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight }, [log])
+
+  const check = async () => { setBusy(true); try { onChange(await window.chessist.checkUpdate()) } finally { setBusy(false) } }
+  const apply = async () => {
+    setApplying(true); setLog('')
+    try { const r = await window.chessist.applyUpdate(); if (!r.ok) setLog(prev => prev + `\nUpdate failed at: ${r.step}\n`) }
+    finally { setApplying(false) }
+  }
+  const toggleBeta = async (v) => {
+    setBetaState(v)
+    await window.chessist.setBeta(v)
+    check()   // re-evaluate against the new channel
+  }
+
+  let line = 'Checking…'
+  let color = 'rgb(var(--fg-muted))'
+  if (status) {
+    if (status.unsupported) { line = 'Updates apply to git installs only.'; color = 'rgb(var(--fg-dim))' }
+    else if (status.error) { line = status.error; color = 'rgb(var(--status-red))' }
+    else if (status.noReleases) { line = 'Stable channel — no releases published yet.'; color = 'rgb(var(--fg-dim))' }
+    else if (status.available && status.channel === 'beta') { line = `Update available — ${status.behind} commit${status.behind === 1 ? '' : 's'} behind.`; color = 'rgb(var(--status-yellow))' }
+    else if (status.available) { line = `Update available — ${status.tag}.`; color = 'rgb(var(--status-yellow))' }
+    else { line = 'You are on the latest version.'; color = 'rgb(var(--status-green))' }
+  }
+
   return (
-    <div style={{ padding: 24, fontSize: 13, lineHeight: 1.9 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+    <div className="scard" style={{ padding: 14, marginTop: 8 }}>
+      <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', color: 'rgb(var(--fg-muted))', marginBottom: 8 }}>UPDATES</div>
+      <div style={{ fontSize: 12, color, marginBottom: 12 }}>{applying ? 'Updating…' : line}</div>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, cursor: 'pointer' }}>
+        <Check checked={beta} onChange={toggleBeta} />
+        <span style={{ fontSize: 12 }}>
+          <span style={{ fontWeight: 600 }}>Beta channel</span>
+          <span style={{ color: 'rgb(var(--fg-dim))' }}> — update on every commit (off = released versions only)</span>
+        </span>
+      </label>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {status?.available && !applying && (
+          <button style={btn} onClick={apply}>Update &amp; restart</button>
+        )}
+        <button style={btnGhost} disabled={busy || applying} onClick={check}>
+          {busy ? 'Checking…' : 'Check for updates'}
+        </button>
+      </div>
+
+      {(applying || log) && (
+        <pre ref={logRef} style={{
+          marginTop: 12, maxHeight: 160, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))', borderRadius: 'var(--radius-sm)',
+          padding: 10, fontSize: 11, fontFamily: 'monospace', color: 'rgb(var(--fg-muted))',
+        }}>{log || ' '}</pre>
+      )}
+    </div>
+  )
+}
+
+export default function AboutPage({ updateStatus, onUpdateStatus }) {
+  return (
+    <div style={{ padding: 16, fontSize: 13, lineHeight: 1.9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, padding: '0 8px' }}>
         <img src={logo} alt="" width={40} height={40} style={{ display: 'block', borderRadius: 8 }} />
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
           <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '0.08em' }}>CHESSIST</span>
-          <span style={{ fontFamily: 'monospace', color: 'rgb(var(--fg-muted))' }}>v{VERSION}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums', color: 'rgb(var(--fg-muted))' }}>v{VERSION}</span>
         </div>
       </div>
-      <p style={{ color: 'rgb(var(--fg-muted))', marginBottom: 16 }}>
+      <p style={{ color: 'rgb(var(--fg-muted))', margin: '0 8px 14px' }}>
         Live Stockfish evaluation for Chess.com and Lichess — a desktop app with a transparent,
         screen-capture-invisible board overlay.
       </p>
-      <div style={{ display: 'grid', gap: 4 }}>
+      <div style={{ display: 'grid', gap: 4, padding: '0 8px' }}>
         <Link href="https://github.com/imluri/Chessist">GitHub repository</Link>
         <Link href="https://stockfishchess.org/">Stockfish (GPL)</Link>
       </div>
-      <p style={{ marginTop: 20, fontSize: 12, color: 'rgb(var(--fg-dim))' }}>
+
+      <Updates status={updateStatus} onChange={onUpdateStatus} />
+
+      <p style={{ margin: '16px 8px 0', fontSize: 12, color: 'rgb(var(--fg-dim))' }}>
         Created by imluri · MIT licensed (app + extension) · Stockfish is GPL, downloaded at first run.
       </p>
     </div>

@@ -5,6 +5,7 @@ const { ensureStockfish } = require('./stockfish')
 const { Engine } = require('./engine')
 const { Overlay } = require('./overlay')
 const { Bridge } = require('./wsserver')
+const updater = require('./updater')
 
 // --prod (or CHESSIST_PROD=1) forces production mode when running unpacked from
 // the cloned repo via the local Electron (install.bat) — loads dist/ instead of
@@ -44,13 +45,16 @@ const gameSettings = {
   targetAccuracy: 100,     // target move accuracy %
 }
 
+// App-level preferences (update channel, etc.).
+const appPrefs = { betaUpdates: false }
+
 function settingsPath() { return path.join(app.getPath('userData'), 'chessist-settings.json') }
 function loadAll() {
   try { return JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) || {} } catch { return {} }
 }
 function saveAll() {
   try {
-    fs.writeFileSync(settingsPath(), JSON.stringify({ engine: engine?.getSettings() ?? {}, game: gameSettings }, null, 2))
+    fs.writeFileSync(settingsPath(), JSON.stringify({ engine: engine?.getSettings() ?? {}, game: gameSettings, app: appPrefs }, null, 2))
   } catch {}
 }
 
@@ -110,6 +114,7 @@ async function startSubsystems() {
   const saved = loadAll()
   Object.assign(engine.settings, saved.engine || {})
   Object.assign(gameSettings, saved.game || {})
+  Object.assign(appPrefs, saved.app || {})
   bridge = new Bridge(engine, overlay, (c) => pushStatus(c))
   bridge.getGameSettings = () => gameSettings
   bridge.onPosition = (p) => sendToRenderer('position', p)
@@ -158,6 +163,14 @@ function registerIpc() {
     return gameSettings
   })
   ipcMain.handle('stockfish:redownload', () => redownloadStockfish())
+  ipcMain.handle('update:get-beta', () => appPrefs.betaUpdates)
+  ipcMain.handle('update:set-beta', (_e, beta) => { appPrefs.betaUpdates = !!beta; saveAll(); return appPrefs.betaUpdates })
+  ipcMain.handle('update:check', () => updater.checkForUpdate(appPrefs.betaUpdates))
+  ipcMain.handle('update:apply', async () => {
+    const res = await updater.applyUpdate(appPrefs.betaUpdates, (line) => sendToRenderer('update:log', line))
+    if (res.ok) setTimeout(() => { app.relaunch(); app.exit(0) }, 1000)
+    return res
+  })
   ipcMain.handle('shell:open', (_e, url) => { try { shell.openExternal(url) } catch {} })
   ipcMain.handle('extension:path', () => extensionDir())
   ipcMain.handle('extension:reveal', () => { try { return shell.openPath(extensionDir()) } catch { return '' } })

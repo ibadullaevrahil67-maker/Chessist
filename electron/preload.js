@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('chessist', {
   getExtensionPath: () => ipcRenderer.invoke('extension:path'),
   revealExtensionFolder: () => ipcRenderer.invoke('extension:reveal'),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  applyUpdate: () => ipcRenderer.invoke('update:apply'),
+  getBeta: () => ipcRenderer.invoke('update:get-beta'),
+  setBeta: (beta) => ipcRenderer.invoke('update:set-beta', beta),
+  onUpdateLog: (cb) => {
+    const h = (_e, line) => cb(line)
+    ipcRenderer.on('update:log', h)
+    return () => ipcRenderer.removeListener('update:log', h)
+  },
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
