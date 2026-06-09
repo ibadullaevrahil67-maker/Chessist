@@ -5,7 +5,34 @@ import EnginePage from '../pages/EnginePage'
 const TABS = [
   { id: 'game', label: 'Game' },
   { id: 'engine', label: 'Engine' },
+  { id: 'developer', label: 'Developer' },
 ]
+
+function DeveloperPage() {
+  const [open, setOpen] = useState(false)
+  const toggle = async () => { setOpen(await window.chessist.toggleDevTools()) }
+  return (
+    <div style={{ padding: 16 }}>
+      <div className="scard" style={{ padding: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', color: 'rgb(var(--fg-muted))', marginBottom: 8 }}>DEVELOPER TOOLS</div>
+        <div style={{ fontSize: 12, color: 'rgb(var(--fg-dim))', marginBottom: 12, lineHeight: 1.5 }}>
+          Open Chrome DevTools for this app window — inspect the renderer, read console logs, and debug the UI.
+        </div>
+        <button
+          onClick={toggle}
+          style={{
+            padding: '7px 12px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--radius-sm)',
+            background: open ? 'rgb(var(--surface))' : 'rgb(var(--accent))',
+            color: open ? 'rgb(var(--fg))' : '#fff',
+            border: open ? '1px solid rgb(var(--border))' : 'none',
+          }}
+        >
+          {open ? 'Close DevTools' : 'Open DevTools'}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function SettingsModal({ onClose }) {
   const [tab, setTab] = useState('game')
@@ -49,6 +76,7 @@ export default function SettingsModal({ onClose }) {
         <div style={{ overflowY: 'auto' }}>
           {tab === 'game' && <GamePage />}
           {tab === 'engine' && <EnginePage />}
+          {tab === 'developer' && <DeveloperPage />}
         </div>
       </div>
     </div>

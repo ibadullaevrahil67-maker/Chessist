@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('chessist', {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  toggleDevTools: () => ipcRenderer.invoke('app:toggle-devtools'),
   onStatus: (cb) => {
     const h = (_e, payload) => cb(payload)
     ipcRenderer.on('status', h)

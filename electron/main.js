@@ -175,6 +175,12 @@ function registerIpc() {
   ipcMain.handle('extension:path', () => extensionDir())
   ipcMain.handle('extension:reveal', () => { try { return shell.openPath(extensionDir()) } catch { return '' } })
   ipcMain.handle('clipboard:write', (_e, text) => { try { clipboard.writeText(String(text)) } catch {} })
+  ipcMain.handle('app:toggle-devtools', () => {
+    const wc = mainWindow?.webContents
+    if (!wc || wc.isDestroyed()) return false
+    if (wc.isDevToolsOpened()) { wc.closeDevTools(); return false }
+    wc.openDevTools({ mode: 'detach' }); return true
+  })
 }
 
 // The bundled (or repo) browser-extension folder users load unpacked.
