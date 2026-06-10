@@ -31,23 +31,31 @@ Windows 10/11. The transparent overlay is Windows-only.
 ## Install
 
 > Prebuilt installers will land on the [Releases](https://github.com/imluri/Chessist/releases) page.
-> Until then, build it from source in one click.
+> Until then, install from source — one click builds **and** installs it.
 
 **Requirements:** [Node 20+](https://nodejs.org/) and the
 [.NET SDK 8](https://dotnet.microsoft.com/download) (used to build the overlay).
 
-1. Clone the repo:
+1. Get the code — clone it (recommended; enables in-app auto-update):
    ```bash
    git clone https://github.com/imluri/Chessist.git
    ```
-2. Double-click **`install.bat`** — it checks Node/.NET, installs dependencies, builds the overlay +
-   app, and creates a **Chessist** shortcut (with the app icon) in the project folder.
-3. Launch Chessist from that shortcut (keep the cloned folder where it is — the app runs from it).
-   It downloads Stockfish on first run — watch the **Setup** tab.
+   …or download the ZIP from the repo / a release and extract it.
+2. Double-click **`install.bat`**. It requests administrator rights (one UAC prompt — needed to build
+   the installer), checks Node/.NET, installs dependencies and the overlay, then builds the Windows
+   installer (`npm run dist`) and runs it. **Chessist installs and launches automatically.**
+   - If the installer build can't run on your machine, it falls back to a portable **Chessist**
+     shortcut in the project folder — launch from there and keep the folder where it is.
+3. First launch downloads Stockfish — watch the **Setup** tab.
 4. On the **Setup** tab, follow the **Browser extension** card: it reveals the bundled extension
-   folder and walks you through `chrome://extensions` → Developer mode → **Load unpacked**.
+   folder and walks you through `chrome://extensions` → Developer mode → **Load unpacked**. Works on
+   any Chromium browser — **Chrome, Brave, or Edge**.
 5. Open a game on chess.com or lichess.org. The board and evaluation appear in the app; choose your
    render mode and tweak settings via the **gear** (Settings → Game / Engine).
+
+**Updating:** the **About** tab checks GitHub for new versions. A git clone updates in place
+(stable = release tags, beta = every commit on `main`); a ZIP install gets a one-click link to the
+latest release.
 
 ## Using the app
 
