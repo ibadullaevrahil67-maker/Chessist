@@ -1738,6 +1738,7 @@
   }
   let _boardObserver = null;
   let _observedBoard = null;
+  let _overlayShown = false; // tracks overlay visibility so we hide it exactly once when the board disappears
   let _lastEvaluation = null; // cached for immediate redraw on WS reconnect
 
   // A WebSocket-shaped object that tunnels frames through the service worker,
@@ -1869,7 +1870,16 @@
   function sendPositionUpdate() {
     if (!overlayMode || !_overlayWs || _overlayWs.readyState !== WebSocket.OPEN) return;
     const board = findBoard();
-    if (!board) return;
+    if (!board) {
+      // No game on screen (game ended, navigated away, or reloaded onto a
+      // non-game page). Hide the overlay once so it never keeps painting stale
+      // arrows. Sent only on the show→hide transition to avoid spamming the pipe.
+      if (_overlayShown) {
+        try { _overlayWs.send(JSON.stringify({ positionOnly: true, visible: false })); } catch (e) {}
+        _overlayShown = false;
+      }
+      return;
+    }
     if (board !== _observedBoard) {
       if (_boardObserver) _boardObserver.disconnect();
       _boardObserver = new ResizeObserver(sendPositionUpdate);
@@ -1886,6 +1896,7 @@
         width: rect.width, height: rect.height,
         dpr,
       }));
+      _overlayShown = true;
     } catch (e) {}
   }
 
