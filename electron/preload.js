@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('chessist', {
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   getExtensionPath: () => ipcRenderer.invoke('extension:path'),
   revealExtensionFolder: () => ipcRenderer.invoke('extension:reveal'),
+  getFirefoxPath: () => ipcRenderer.invoke('extension:firefox-path'),
+  revealFirefoxFolder: () => ipcRenderer.invoke('extension:firefox-reveal'),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   applyUpdate: () => ipcRenderer.invoke('update:apply'),

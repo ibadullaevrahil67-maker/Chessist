@@ -1,6 +1,7 @@
 node_modules/
 dist/
 release/
+firefox/
 overlay/bin/
 overlay/obj/
 *.log

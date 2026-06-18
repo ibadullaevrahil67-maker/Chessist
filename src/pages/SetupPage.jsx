@@ -65,8 +65,13 @@ function OverlayModule({ status }) {
 
 function ExtensionModule({ status }) {
   const [extPath, setExtPath] = useState('')
+  const [ffPath, setFfPath] = useState('')
+  const [browser, setBrowser] = useState('chromium')   // 'chromium' | 'firefox'
   const [copied, setCopied] = useState('')
-  useEffect(() => { window.chessist.getExtensionPath().then(setExtPath) }, [])
+  useEffect(() => {
+    window.chessist.getExtensionPath().then(setExtPath)
+    window.chessist.getFirefoxPath?.().then(setFfPath)
+  }, [])
 
   const copy = (text, tag) => { window.chessist.copyText(text); setCopied(tag); setTimeout(() => setCopied(''), 1500) }
   const connected = status.extensionConnected
@@ -77,6 +82,18 @@ function ExtensionModule({ status }) {
       <span>{children}</span>
     </div>
   )
+  const PathBox = ({ path }) => path ? (
+    <div style={{ margin: '10px 0', padding: '8px 10px', background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: 11, color: 'rgb(var(--fg-muted))', wordBreak: 'break-all' }}>
+      {path}
+    </div>
+  ) : null
+  const Tab = ({ id, children }) => (
+    <button onClick={() => setBrowser(id)} style={{
+      ...btn, background: browser === id ? 'rgb(var(--surface))' : 'transparent',
+      borderColor: browser === id ? 'rgb(var(--accent))' : 'rgb(var(--border))',
+      color: browser === id ? 'rgb(var(--fg))' : 'rgb(var(--fg-muted))',
+    }}>{children}</button>
+  )
 
   return (
     <ModuleCard title="Browser extension" state={connected ? 'ok' : 'off'} statusLabel={connected ? 'connected' : 'not connected'}>
@@ -86,24 +103,42 @@ function ExtensionModule({ status }) {
         </p>
       ) : (
         <>
-          <Step n={1}>Open <code style={{ color: 'rgb(var(--fg))' }}>chrome://extensions</code> in Chrome, Brave, or Edge.</Step>
-          <Step n={2}>Turn on <strong style={{ color: 'rgb(var(--fg))' }}>Developer mode</strong> (top-right toggle).</Step>
-          <Step n={3}>Click <strong style={{ color: 'rgb(var(--fg))' }}>Load unpacked</strong> and select the folder below.</Step>
-
-          {extPath && (
-            <div style={{ margin: '10px 0', padding: '8px 10px', background: 'rgb(var(--bg))', border: '1px solid rgb(var(--border))', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: 11, color: 'rgb(var(--fg-muted))', wordBreak: 'break-all' }}>
-              {extPath}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button style={btn} onClick={() => window.chessist.revealExtensionFolder()}>Open folder</button>
-            <button style={btn} onClick={() => copy(extPath, 'path')}>{copied === 'path' ? 'Copied ✓' : 'Copy path'}</button>
-            <button style={btn} onClick={() => copy('chrome://extensions', 'url')}>{copied === 'url' ? 'Copied ✓' : 'Copy chrome://extensions'}</button>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <Tab id="chromium">Chrome / Brave / Edge</Tab>
+            <Tab id="firefox">Firefox</Tab>
           </div>
-          <p style={{ marginTop: 10, fontSize: 11, color: 'rgb(var(--fg-dim))' }}>
-            Browsers block opening <code>chrome://</code> links from outside — copy and paste it into the address bar.
-          </p>
+
+          {browser === 'chromium' ? (
+            <>
+              <Step n={1}>Open <code style={{ color: 'rgb(var(--fg))' }}>chrome://extensions</code> in Chrome, Brave, or Edge.</Step>
+              <Step n={2}>Turn on <strong style={{ color: 'rgb(var(--fg))' }}>Developer mode</strong> (top-right toggle).</Step>
+              <Step n={3}>Click <strong style={{ color: 'rgb(var(--fg))' }}>Load unpacked</strong> and select the folder below.</Step>
+              <PathBox path={extPath} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button style={btn} onClick={() => window.chessist.revealExtensionFolder()}>Open folder</button>
+                <button style={btn} onClick={() => copy(extPath, 'path')}>{copied === 'path' ? 'Copied ✓' : 'Copy path'}</button>
+                <button style={btn} onClick={() => copy('chrome://extensions', 'url')}>{copied === 'url' ? 'Copied ✓' : 'Copy chrome://extensions'}</button>
+              </div>
+              <p style={{ marginTop: 10, fontSize: 11, color: 'rgb(var(--fg-dim))' }}>
+                Browsers block opening <code>chrome://</code> links from outside — copy and paste it into the address bar.
+              </p>
+            </>
+          ) : (
+            <>
+              <Step n={1}>Open <code style={{ color: 'rgb(var(--fg))' }}>about:debugging#/runtime/this-firefox</code> in Firefox 128+.</Step>
+              <Step n={2}>Click <strong style={{ color: 'rgb(var(--fg))' }}>Load Temporary Add-on…</strong></Step>
+              <Step n={3}>Open the folder below and select its <strong style={{ color: 'rgb(var(--fg))' }}>manifest.json</strong>.</Step>
+              <PathBox path={ffPath} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button style={btn} onClick={() => window.chessist.revealFirefoxFolder()}>Open folder</button>
+                <button style={btn} onClick={() => copy(ffPath, 'ffpath')}>{copied === 'ffpath' ? 'Copied ✓' : 'Copy path'}</button>
+                <button style={btn} onClick={() => copy('about:debugging#/runtime/this-firefox', 'ffurl')}>{copied === 'ffurl' ? 'Copied ✓' : 'Copy about:debugging'}</button>
+              </div>
+              <p style={{ marginTop: 10, fontSize: 11, color: 'rgb(var(--fg-dim))' }}>
+                Firefox removes temporary add-ons when it restarts — re-add it after restarting. If the folder is empty, run <code>npm run build:firefox</code> (dev only).
+              </p>
+            </>
+          )}
         </>
       )}
     </ModuleCard>

@@ -174,6 +174,8 @@ function registerIpc() {
   ipcMain.handle('shell:open', (_e, url) => { try { shell.openExternal(url) } catch {} })
   ipcMain.handle('extension:path', () => extensionDir())
   ipcMain.handle('extension:reveal', () => { try { return shell.openPath(extensionDir()) } catch { return '' } })
+  ipcMain.handle('extension:firefox-path', () => firefoxDir())
+  ipcMain.handle('extension:firefox-reveal', () => { try { return shell.openPath(firefoxDir()) } catch { return '' } })
   ipcMain.handle('clipboard:write', (_e, text) => { try { clipboard.writeText(String(text)) } catch {} })
   ipcMain.handle('app:toggle-devtools', () => {
     const wc = mainWindow?.webContents
@@ -188,6 +190,13 @@ function extensionDir() {
   return isDev
     ? path.join(__dirname, '..', 'extension')
     : path.join(process.resourcesPath, 'extension')
+}
+
+// The Firefox-flavored copy (build with `npm run build:firefox`; shipped in prod).
+function firefoxDir() {
+  return isDev
+    ? path.join(__dirname, '..', 'firefox')
+    : path.join(process.resourcesPath, 'firefox')
 }
 
 // Single instance: a second launch must not race for port 27301. If we can't get
