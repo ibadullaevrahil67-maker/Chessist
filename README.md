@@ -1,6 +1,7 @@
 <p align="center"><img src="extension/icons/icon128.png" width="96" height="96" alt="Chessist"></p>
 <h1 align="center">Chessist</h1>
 <p align="center">Live Stockfish evaluation for Chess.com and Lichess — a desktop app + browser extension.</p>
+<img width="1609" height="939" alt="chessist" src="https://github.com/user-attachments/assets/754eead5-5897-4954-81ce-8d2334497c43" />
 
 ---
 
